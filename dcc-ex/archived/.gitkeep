@@ -1,0 +1,9 @@
+# Place superseded versions of myAutomation.h here for history.
+# Examples of files that belong in this folder:
+#   myAutomation-v1-time-based.h
+#   myAutomation-v2-broken-sensor-syntax.h
+#   myAutomation-v3-finite-loop.h
+#
+# Once git history is sufficient (after several commits and tags), this folder
+# can be deprecated in favor of git tags. For now it acts as a safety net for
+# pre-git iterations.

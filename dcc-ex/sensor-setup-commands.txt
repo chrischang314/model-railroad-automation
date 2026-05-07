@@ -1,0 +1,35 @@
+# DCC-EX Sensor Setup Commands
+#
+# Send these commands to DCC-EX after each firmware flash. Sensor declarations
+# do not always persist across reflashes in CommandStation-EX 5.6.0, so this
+# file is the canonical source of truth for the current sensor map.
+#
+# How to send:
+#   - JMRI: Tools -> DCC-EX -> Send DCC++ Command (or DCC++ menu)
+#   - WebThrottle-EX: command box at the top
+#   - Telnet to port 2560: paste line by line
+#
+# Format: <S sensor_id vpin pullup>
+#   sensor_id - DCC-EX sensor ID (1001-1004 here)
+#   vpin      - virtual pin number on the CSB1 GPIO header
+#   pullup    - 0 = no internal pullup, 1 = internal pullup enabled
+#
+# Pullup is 0 here because the BSS138 level shifter actively drives both
+# states (HIGH and LOW); enabling the ESP32 pullup would fight the shifter.
+
+# Sensor 1001: home end of long track (close to station). Vpin 33.
+<S 1001 33 0>
+
+# Sensor 1002: far end of long track. Vpin 26.
+<S 1002 26 0>
+
+# Sensors 1003 and 1004 are reserved for future installation (vpins 16, 17).
+# Hardware is wired through to the CSB1 but no IR pairs are mounted yet.
+# Uncomment to enable when sensor pairs are physically installed:
+#<S 1003 16 0>
+#<S 1004 17 0>
+
+# Verify configuration with:
+#   <S>           list all configured sensors
+#   <s>           DCC-EX status (firmware version, power state)
+#   <JA>          list automations and routes

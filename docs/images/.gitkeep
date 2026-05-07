@@ -1,0 +1,10 @@
+# Drop layout overhead photos, wiring snapshots, and screen captures here.
+# Recommended files (placeholders; not yet captured):
+#   layout-overhead.jpg     -- bird's eye view of the full layout
+#   wiring-photo.jpg        -- Arduino + RIR4 + level shifter + CSB1 in situ
+#   csb1-pin-labels.jpg     -- close-up of the CSB1 GPIO header silkscreen
+#   bss138-soldered.jpg     -- finished level shifter board
+#   sensor-pair-mounted.jpg -- one IR sensor pair installed on the track
+#
+# Reference these from the markdown files in docs/ via:
+#   ![Caption](images/filename.jpg)

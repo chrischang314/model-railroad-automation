@@ -1,0 +1,12 @@
+# JMRI panel XML files go here. Currently empty.
+#
+# When you build a panel:
+#   1. JMRI -> Tools -> Panels -> New Panel -> Layout Editor (or Panel Editor)
+#   2. Place sensors, turnouts, signals, blocks as needed.
+#   3. JMRI -> File -> Save Panels... -> save as panels/<name>.xml in this folder.
+#
+# Suggested first panel:
+#   shuttle.xml
+#     - Schematic of the long track + station with live sensor indicators.
+#     - "Start Shuttle" and "Stop Shuttle" buttons that send </START 100> and </KILL ALL>.
+#     - Turnout 2 lever wired to the Turnout Table.

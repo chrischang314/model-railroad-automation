@@ -1,0 +1,56 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Arduino build artifacts
+*.bin
+*.elf
+*.hex
+*.eep
+*.lst
+*.map
+build/
+.cache/
+
+# EX-Installer / Arduino IDE working folders
+ex-installer/
+CommandStation-EX/
+arduino-cli/
+
+# Editor backups and IDE state
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+
+# Sensitive: don't commit credentials, IPs, network info
+secrets.txt
+*.local
+.env
+.env.*
+wifi-credentials.*
+
+# Large binaries that don't belong in git
+*.zip
+*.tar.gz
+*.tgz
+
+# Imported chat archives (used during initial setup; keep out of repo)
+chat-import/
+
+# Claude Code per-user/local state -- not for sharing
+.claude/
+
+# Python virtualenvs (in case any tooling lands here later)
+.venv/
+venv/
+__pycache__/
