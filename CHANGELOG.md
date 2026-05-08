@@ -9,9 +9,41 @@ bugfix or doc update).
 
 ## [Unreleased]
 
-- Mount IR sensor pairs for sensors 1003 and 1004 (hardware path is wired
-  through to the CSB1 already; just needs physical installation and
-  uncommenting in `dcc-ex/sensor-setup-commands.txt`).
+- (nothing pending; see open GitHub issues for tracked work)
+
+## [1.1.0] - 2026-05-07
+
+### Added
+
+- **Headlight automation** in `dcc-ex/myAutomation.h`. Each sequence now
+  toggles `FON(0)` at start and `FOFF(0)` after the home-station stop,
+  so the leading headlight stays lit during motion and dwells, and the
+  train looks "parked" between cycles.
+- **Graceful stop** via a virtual run-flag at vpin 2001. A new
+  `ROUTE(101, "Stop Shuttle Gracefully")` clears the flag with `RESET`;
+  the dispatch check at the end of each sequence (`IF(2001) SENDLOCO ENDIF`)
+  exits cleanly when the flag is cleared. The train completes its current
+  cycle, returns home, and stops -- no emergency kill required.
+- **Randomized station dwells** via `DELAYRANDOM(8000, 14000)` replacing
+  the fixed `DELAY(10000)` at both endpoints. Removes the metronome feel
+  of v1.0.0; gives a more prototypical timetabled-stop appearance.
+- **Inline tuning comments** in `dcc-ex/myAutomation.h` explaining the
+  rationale for cruise speed 80, creep 40, 3 s creep duration, and
+  headlight bracketing. Future-you will not have to re-derive these.
+
+### Changed
+
+- `ROUTE(100, "Start Shuttle")` now sets the run flag in addition to
+  dispatching Train 2.
+
+### Migration notes
+
+- After flashing v1.1.0, no new `<S>` declarations are required for the
+  virtual run flag -- `SET(2001)` creates the vpin on demand. Sensor
+  declarations for 1001 / 1002 are unchanged.
+- Backwards-compatible at the trigger interface: `</START 100>` still
+  starts the shuttle exactly as before. The new `</START 101>` is purely
+  additive.
 
 ## [1.0.0] - 2026-05-07
 
@@ -94,5 +126,6 @@ project files:
 - No graceful "stop after current cycle" mechanism; only immediate stop.
 - Speeds above 80 cause overshoot at sensor 1002.
 
-[Unreleased]: https://github.com/chrischang16173/model-railroad-automation/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/chrischang16173/model-railroad-automation/releases/tag/v1.0.0
+[Unreleased]: https://github.com/chrischang314/model-railroad-automation/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/chrischang314/model-railroad-automation/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/chrischang314/model-railroad-automation/releases/tag/v1.0.0

@@ -29,6 +29,11 @@
 #<S 1003 16 0>
 #<S 1004 17 0>
 
+# Vpin 2001 is a virtual run-flag used by the v1.1.0 graceful-stop logic in
+# myAutomation.h. It does NOT need to be declared via <S>; SET(2001) and
+# RESET(2001) inside EXRAIL create the vpin on demand. Listed here only so
+# nobody accidentally re-uses the number.
+
 # Verify configuration with:
 #   <S>           list all configured sensors
 #   <s>           DCC-EX status (firmware version, power state)

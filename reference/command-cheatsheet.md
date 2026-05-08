@@ -78,7 +78,8 @@ should be re-applied after every CSB1 reflash.
 
 | Command | What it does |
 | --- | --- |
-| `</START 100>` | Start the route or sequence with ID 100 (the trigger route). |
+| `</START 100>` | Start the shuttle (sets run flag, dispatches Train 2). |
+| `</START 101>` | Stop the shuttle gracefully (clears run flag; current cycle finishes naturally). |
 | `</START 10 2>` | Start sequence 10 on loco 2. |
 | `</PAUSE>` | Pause every running EXRAIL task (cooperative). |
 | `</RESUME>` | Resume after pause. |
@@ -96,6 +97,8 @@ These are written in the `myAutomation.h` source, not sent over the wire.
 | `TURNOUTL(id, addr, name)` | Declare a DCC accessory turnout with label. |
 | `ROUTE(id, name)` | Declare a triggerable command sequence. |
 | `SEQUENCE(id)` | Private sub-routine usable from `SENDLOCO`. |
+| `SET(vpin)` | Set virtual sensor `vpin` to active (creates the vpin if needed). |
+| `RESET(vpin)` | Set virtual sensor `vpin` to inactive. |
 | `AUTOSTART` | Run the following block automatically at boot. |
 | `POWERON` | Turn on track power. |
 | `THROW(n)` / `CLOSE(n)` | Throw or close turnout `n`. |
@@ -104,7 +107,9 @@ These are written in the `myAutomation.h` source, not sent over the wire.
 | `AT(-vpin)` | Block until vpin reads inactive (inverted polarity). |
 | `IF(vpin)` / `ENDIF` | Conditional branching on a vpin state. |
 | `DELAY(ms)` | Sleep `ms` milliseconds. |
-| `DELAYRANDOM(min, max)` | Sleep a random duration in range. |
+| `DELAYRANDOM(min, max)` | Sleep a random duration in `[min, max]` ms. |
+| `IF(vpin)` / `ENDIF` | Run the enclosed block only if vpin is active. |
+| `IFNOT(vpin)` / `ENDIF` | Inverse: run only if vpin is inactive. |
 | `SENDLOCO(addr, sequence_id)` | Dispatch loco `addr` to run sequence `id`. |
 | `FON(fn)` / `FOFF(fn)` | Turn function `fn` on/off on the current loco. |
 | `DONE` | End of a `ROUTE`/`SEQUENCE`/`AUTOSTART` block (required). |

@@ -1,5 +1,10 @@
 # Model Railroad Automation
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/chrischang314/model-railroad-automation?include_prereleases&sort=semver)](https://github.com/chrischang314/model-railroad-automation/releases)
+[![Last commit](https://img.shields.io/github/last-commit/chrischang314/model-railroad-automation)](https://github.com/chrischang314/model-railroad-automation/commits/main)
+[![DCC-EX](https://img.shields.io/badge/DCC--EX-5.6.0--Prod-blue)](https://dcc-ex.com)
+
 Sensor-driven two-train shuttle automation built on a DCC-EX **EX-CSB1** command
 station with **Azatrax RIR4** IR detectors bridged through an **Arduino Uno**.
 Trains run autonomously between sensor-defined endpoints on a shared track,
@@ -13,7 +18,13 @@ Trigger the shuttle (once configured):
 </START 100>
 ```
 
-Stop everything:
+Stop gracefully (current cycle finishes, then no further dispatch):
+
+```
+</START 101>
+```
+
+Stop immediately (kills running tasks, freezes loco motors):
 
 ```
 </KILL ALL>
