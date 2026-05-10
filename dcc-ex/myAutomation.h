@@ -19,7 +19,8 @@
 //   at any time. While Train X runs, all other trains are parked clear of
 //   the sensor beams, so any S1/S2 trigger unambiguously belongs to X.
 //
-//   The cycle is: T2 lap -> T4 lap -> T2 lap -> T5 lap -> repeat.
+//   The cycle is a fixed deterministic chain:
+//     T2 -> T4 -> T2 -> T5 -> repeat
 //   Trains 4 and 5 alternate on the middle track; Train 2 runs on top
 //   between every middle-track lap.
 //
@@ -52,27 +53,29 @@
 //                              the unused bottom-right spur).
 //
 // CONTROL ROUTES
-//   </START 100>          start the shuttle (raises run flag, dispatches T2)
-//   </START 101>          graceful stop (clears flag; current cycle finishes)
-//   </KILL ALL>           immediate stop
+//   </START 100>          start the shuttle (T2 first, then T4, then T2, then T5, ...)
+//   </KILL ALL>           stop everything (graceful stop is TODO; see notes below)
 //   <!>                   emergency loco e-stop
 //
 // SENSOR DECLARATIONS (re-send after every flash)
 //   <S 1001 33 0>         S1 (home end of both tracks)
 //   <S 1002 26 0>         S2 (far end of both tracks)
-//   (vpins 2001 / 2002 are virtual flags; SET / RESET creates them on demand)
 //
-// VIRTUAL FLAGS
-//   2001 - run flag           (set = running, reset = graceful stop pending)
-//   2002 - middle alternator  (set = next middle is Train 5, reset = T4)
-//
-// EXRAIL 5.6.0 NOTES (learned the hard way)
-//   - Nested IF (`IF(...) IF(...) ... ENDIF ENDIF`) parses without errors
-//     but the inner block does not appear to fire reliably. Avoided here.
-//   - This script uses ONLY top-level IF / ELSE / ENDIF blocks, which are
-//     confirmed working.
-//   - Trade-off: Train 2 always dispatches a middle train; the graceful-
-//     stop check runs in SEQUENCE(20) and SEQUENCE(30) instead.
+// EXRAIL 5.6.0 NOTES (learned the hard way on this layout)
+//   1. Nested IF (`IF(...) IF(...) ... ENDIF ENDIF`) parses but the inner
+//      block does not fire reliably. AVOID.
+//   2. SET(vpin) / IF(vpin) on a vpin with no `<S>` declaration appears to
+//      use different state tables -- the IF check never sees the SET.
+//      The previous DRAFT used SET(2001) / IF(2001) for a graceful-stop
+//      flag and SET(2002) / IF(2002) for a middle-train alternator;
+//      neither worked end-to-end on this firmware.
+//   3. Consequence: this script uses NO virtual flags and NO conditional
+//      dispatch. The cycle is a fixed deterministic chain via SENDLOCO
+//      target IDs. Train 2 has TWO sequences (10 and 11) with identical
+//      bodies but different terminal SENDLOCO targets, which is how the
+//      middle-train alternation is encoded.
+//   4. Graceful stop is currently a TODO (see open issue). For now, stop
+//      with </KILL ALL>.
 
 // ============================================================================
 // Roster
@@ -102,18 +105,19 @@ DONE
 // Trigger routes
 // ============================================================================
 ROUTE(100, "Start Shuttle")
-  SET(2001)           // raise run flag
-  RESET(2002)         // alternator: first middle is Train 4
-  SENDLOCO(2, 10)     // dispatch Train 2 first
-DONE
-
-ROUTE(101, "Stop Shuttle Gracefully")
-  RESET(2001)         // current cycle will finish, then no further dispatch
+  SENDLOCO(2, 10)     // dispatch Train 2 (sequence 10 -> Train 4 next)
 DONE
 
 // ============================================================================
-// Train 2 - top track lap
+// Train 2 - top track lap (TWO sequences, identical body)
 // ============================================================================
+//
+// SEQUENCE(10) and SEQUENCE(11) have IDENTICAL bodies. They differ only in
+// the final SENDLOCO target:
+//   SEQUENCE(10) -> SENDLOCO(4, 20)   (Train 4 next)
+//   SEQUENCE(11) -> SENDLOCO(5, 30)   (Train 5 next)
+//
+// IF YOU TUNE TRAIN 2'S TIMING, EDIT BOTH SEQUENCES TO MATCH.
 //
 // Direction convention:
 //   FWD = east  (Train 2 starts at the WEST end facing east)
@@ -123,51 +127,61 @@ DONE
 //   East-bound: S1 fires as transit (no AT waiting on it), S2 is the stop.
 //   West-bound: S2 fires as transit, S1 is the home stop.
 //
-// Tuning rationale (these values apply to all three sequences):
+// Tuning rationale:
 //   FWD/REV(40)   Cruise speed. Halved from v1.1.0's 80 for slower, more
 //                 deliberate operation on this layout.
-//   FWD/REV(20)   Creep speed for the last 8 s before STOP. Halved from
-//                 v1.1.0's 40. With halved speed, the creep DELAY had to
-//                 grow to maintain a similar distance covered.
-//   DELAY(8000)   Creep duration. Long enough that the train moves
-//                 COMPLETELY past the sensor beam before stopping --
-//                 critical for time-slicing; if the train parks on a beam,
-//                 the next sequence's AT() will misfire.
+//   FWD/REV(20)   Creep speed for the last 8 s before STOP.
+//   DELAY(8000)   Creep duration. Long enough that the train clears the
+//                 sensor beam before stopping. Critical for time-slicing.
 //   DELAYRANDOM(3000, 8000)
-//                 Random station dwell. Range tightened from v1.1.0's
-//                 8-14 s.
+//                 Random station dwell.
 
-SEQUENCE(10)
-  FON(0)              // headlights on for the cycle
+SEQUENCE(10)          // === Train 2 lap; dispatches Train 4 ===
+  FON(0)
 
-  FWD(40)             // depart west home, cruise east on top track
-  AT(26)              // wait S2 (far end of top track)
-  FWD(20)             // creep
-  DELAY(8000)         // glide past S2
+  FWD(40)
+  AT(26)
+  FWD(20)
+  DELAY(8000)
   STOP
 
   DELAYRANDOM(3000, 8000)
 
-  REV(40)             // depart far end, cruise west
-  AT(33)              // wait S1 (home end)
+  REV(40)
+  AT(33)
   REV(20)
   DELAY(8000)
   STOP
 
-  FOFF(0)             // headlights off, parked at home
+  FOFF(0)
 
   DELAYRANDOM(3000, 8000)
 
-  // Hand off to the middle track. The alternator vpin 2002 picks the next
-  // train: active = Train 5, inactive = Train 4. Single top-level IF/ELSE
-  // pattern -- no nested IF, no IFNOT (both turned out to be unreliable in
-  // EXRAIL 5.6.0 in the v2.0.0-DRAFT-1 attempt).
-  //
-  // Note: Train 2 ALWAYS dispatches a middle train. The graceful-stop check
-  // (vpin 2001) is enforced inside SEQUENCE(20) and SEQUENCE(30) instead.
-  // Effect: pressing </START 101> always lets the current cycle finish one
-  // more middle-track lap before stopping. That's a natural rest point.
-  IF(2002) SENDLOCO(5, 30) ELSE SENDLOCO(4, 20) ENDIF
+  SENDLOCO(4, 20)     // hand off to Train 4
+DONE
+
+SEQUENCE(11)          // === Train 2 lap; dispatches Train 5 (body identical to SEQ 10) ===
+  FON(0)
+
+  FWD(40)
+  AT(26)
+  FWD(20)
+  DELAY(8000)
+  STOP
+
+  DELAYRANDOM(3000, 8000)
+
+  REV(40)
+  AT(33)
+  REV(20)
+  DELAY(8000)
+  STOP
+
+  FOFF(0)
+
+  DELAYRANDOM(3000, 8000)
+
+  SENDLOCO(5, 30)     // hand off to Train 5
 DONE
 
 // ============================================================================
@@ -175,7 +189,7 @@ DONE
 // ============================================================================
 //
 // Train 4 starts at the WEST end of the middle track, facing EAST.
-// Requires T2 THROWN (middle main clear) and T3 CLOSED (no diversion).
+// Requires T2 THROWN (middle main clear) and T3 THROWN (no diversion).
 // Both are the default at boot.
 
 SEQUENCE(20)
@@ -201,8 +215,7 @@ SEQUENCE(20)
 
   DELAYRANDOM(3000, 8000)
 
-  SET(2002)           // next middle is Train 5
-  IF(2001) SENDLOCO(2, 10) ENDIF
+  SENDLOCO(2, 11)     // hand back to Train 2; SEQ 11 will dispatch Train 5 next
 DONE
 
 // ============================================================================
@@ -216,12 +229,6 @@ DONE
 //   4. T2 stays closed -- when Train 5 reaches T2 going west, it is
 //      diverted onto the spur and stops at home.
 //   5. Throw T2 so the middle main is clear for the next Train 4 lap.
-//
-// Train 5's home-side creep DELAY is intentionally identical to Train 2 /
-// Train 4 (8 s) for now, but Train 5 must travel further on the home leg
-// because it has to negotiate the T2 points and stop on the spur. If the
-// train falls short of the spur, increase only Train 5's home-side
-// DELAY(8000) to e.g. 12000 or 15000.
 
 SEQUENCE(30)
   CLOSE(2)            // T2 -> spur position (so T5 can leave the spur)
@@ -248,6 +255,5 @@ SEQUENCE(30)
 
   DELAYRANDOM(3000, 8000)
 
-  RESET(2002)         // next middle is Train 4
-  IF(2001) SENDLOCO(2, 10) ENDIF
+  SENDLOCO(2, 10)     // hand back to Train 2; SEQ 10 will dispatch Train 4 next
 DONE
