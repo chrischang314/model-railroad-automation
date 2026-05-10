@@ -66,12 +66,13 @@
 //   2001 - run flag           (set = running, reset = graceful stop pending)
 //   2002 - middle alternator  (set = next middle is Train 5, reset = T4)
 //
-// LLM SAFETY NOTE
-//   Per docs/handoff-document.md Section 13 and the DCC-EX team's explicit
-//   warning, EXRAIL syntax varies by firmware version. This script uses
-//   IF / IFNOT / ENDIF nesting that is well-documented for 5.6.0 but should
-//   be verified by flashing and watching the boot log for compile errors.
-//   If nested IF rejects, see the FALLBACK note below SEQUENCE(10).
+// EXRAIL 5.6.0 NOTES (learned the hard way)
+//   - Nested IF (`IF(...) IF(...) ... ENDIF ENDIF`) parses without errors
+//     but the inner block does not appear to fire reliably. Avoided here.
+//   - This script uses ONLY top-level IF / ELSE / ENDIF blocks, which are
+//     confirmed working.
+//   - Trade-off: Train 2 always dispatches a middle train; the graceful-
+//     stop check runs in SEQUENCE(20) and SEQUENCE(30) instead.
 
 // ============================================================================
 // Roster
@@ -157,15 +158,16 @@ SEQUENCE(10)
 
   DELAYRANDOM(3000, 8000)
 
-  // Hand off to the middle track. Two top-level IF blocks honor BOTH the
-  // graceful-stop flag (2001) AND the alternator (2002) without using AND.
-  // At most one SENDLOCO fires because 2002's two states are exclusive.
+  // Hand off to the middle track. The alternator vpin 2002 picks the next
+  // train: active = Train 5, inactive = Train 4. Single top-level IF/ELSE
+  // pattern -- no nested IF, no IFNOT (both turned out to be unreliable in
+  // EXRAIL 5.6.0 in the v2.0.0-DRAFT-1 attempt).
   //
-  // FALLBACK if your firmware rejects nested IF: split this into two T2
-  // sequences (10 = "T2 then T4", 11 = "T2 then T5") with duplicated bodies
-  // and chain SEQUENCE 20 -> SENDLOCO(2,11), SEQUENCE 30 -> SENDLOCO(2,10).
-  IF(2001) IF(2002) SENDLOCO(5, 30) ENDIF ENDIF
-  IF(2001) IFNOT(2002) SENDLOCO(4, 20) ENDIF ENDIF
+  // Note: Train 2 ALWAYS dispatches a middle train. The graceful-stop check
+  // (vpin 2001) is enforced inside SEQUENCE(20) and SEQUENCE(30) instead.
+  // Effect: pressing </START 101> always lets the current cycle finish one
+  // more middle-track lap before stopping. That's a natural rest point.
+  IF(2002) SENDLOCO(5, 30) ELSE SENDLOCO(4, 20) ENDIF
 DONE
 
 // ============================================================================
