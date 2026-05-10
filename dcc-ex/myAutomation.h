@@ -1,156 +1,251 @@
-// myAutomation.h - Sensor-driven two-train alternating shuttle (v1.1.0)
+// myAutomation.h - Multi-track shuttle (v2.0.0-DRAFT)
 //
-// CHANGES vs v1.0.0:
-//   - Headlight automation: F0 on at start of cycle, off at end (FON/FOFF)
-//   - Graceful stop via virtual run-flag at vpin 2001 (SET / RESET / IF)
-//   - Randomized station dwells via DELAYRANDOM (8-14 s instead of fixed 10 s)
-//   - Inline tuning comments explaining the magic numbers
+// LAYOUT (see docs/layout-diagram.md):
 //
-// HARDWARE (unchanged from v1.0.0):
-//   Loco 2 = Shinkansen (Train A, runs first)
-//   Loco 4 = E233 (Train B, runs second)
-//   Turnout 2: thrown = Train 2's route, closed = Train 4's route
-//   Sensor 1001 (vpin 33) = home end of long track
-//   Sensor 1002 (vpin 26) = far end of long track
-//   Virtual vpin 2001     = software-only run flag (no hardware)
+//   Top track:    -------- (Train 2 lives here, shuttles back and forth)
+//                          ^                                ^
+//                          | S1 (vpin 33)                   | S2 (vpin 26)
+//                          | beam crosses BOTH tracks       | beam crosses BOTH tracks
+//                          v                                v
+//   Middle track: --T2-----+--------- T1 -----------+---T3-----  (Trains 4 / 5 alternate)
+//   Spur (BL):       \--- Train 5 home (off T2)
+//   Spur (BR):                                      ---/   unused
 //
-// CONTROL ROUTES:
-//   </START 100>          start the shuttle (sets run flag, dispatches Train 2)
-//   </START 101>          GRACEFUL stop: clears run flag; current cycle finishes
-//                         naturally, then no further dispatch
-//   </KILL ALL>           IMMEDIATE stop: terminates running EXRAIL tasks now
-//                         (use only if a graceful stop won't do)
-//   <!>                   emergency loco e-stop (kills motor speeds)
-//   </PAUSE> / </RESUME>  cooperative pause / resume of running tasks
+// CRITICAL SENSOR CONSTRAINT
+//   S1 and S2 are beam-break sensors whose beams pass across BOTH the top
+//   and middle tracks. The sensor cannot tell which track tripped it.
 //
-// SENSOR CONFIGURATION (re-send after each flash via JMRI / EX-WebThrottle):
-//   <S 1001 33 0>
-//   <S 1002 26 0>
-//   (Sensor 2001 is virtual; SET / RESET creates the vpin on demand.)
+//   This script handles that with TIME-SLICING: only ONE train is in motion
+//   at any time. While Train X runs, all other trains are parked clear of
+//   the sensor beams, so any S1/S2 trigger unambiguously belongs to X.
+//
+//   The cycle is: T2 lap -> T4 lap -> T2 lap -> T5 lap -> repeat.
+//   Trains 4 and 5 alternate on the middle track; Train 2 runs on top
+//   between every middle-track lap.
+//
+// PARKING POSITIONS (must be CLEAR of sensor beams when stopped):
+//   Train 2  - west of S1 on the TOP track     (home position)
+//              east of S2 on the TOP track     (far end)
+//   Train 4  - west of S1 on the MIDDLE track  (home position)
+//              east of S2 on the MIDDLE track  (far end)
+//   Train 5  - on the bottom-left spur, off T2 (home position; off-beam)
+//              east of S2 on the MIDDLE track  (far end)
+//
+//   If a train parks even partially on a sensor, the next train's first
+//   AT(...) call will fire immediately and the cycle will desync. Tune
+//   creep DELAY per train so each train fully clears the beam.
+//
+// TURNOUT POLICY
+//
+//   This layout's accessory decoders use INVERTED polarity vs. the typical
+//   DCC convention. Across all three turnouts:
+//     THROWN  = straight-through / main route
+//     CLOSED  = diverging route
+//
+//   T1 (addr 1, double-slip) - kept THROWN at all times: top and middle
+//                              pass straight through, no crossover.
+//                              ("Open" position per the user's diagram.)
+//   T2 (addr 2, left-hand)   - THROWN for Train 4's lap (middle main clear).
+//                              CLOSED for Train 5's lap (spur connected to
+//                              middle main). Default at boot is THROWN.
+//   T3 (addr 3, right-hand)  - kept THROWN at all times (no diversion to
+//                              the unused bottom-right spur).
+//
+// CONTROL ROUTES
+//   </START 100>          start the shuttle (raises run flag, dispatches T2)
+//   </START 101>          graceful stop (clears flag; current cycle finishes)
+//   </KILL ALL>           immediate stop
+//   <!>                   emergency loco e-stop
+//
+// SENSOR DECLARATIONS (re-send after every flash)
+//   <S 1001 33 0>         S1 (home end of both tracks)
+//   <S 1002 26 0>         S2 (far end of both tracks)
+//   (vpins 2001 / 2002 are virtual flags; SET / RESET creates them on demand)
+//
+// VIRTUAL FLAGS
+//   2001 - run flag           (set = running, reset = graceful stop pending)
+//   2002 - middle alternator  (set = next middle is Train 5, reset = T4)
+//
+// LLM SAFETY NOTE
+//   Per docs/handoff-document.md Section 13 and the DCC-EX team's explicit
+//   warning, EXRAIL syntax varies by firmware version. This script uses
+//   IF / IFNOT / ENDIF nesting that is well-documented for 5.6.0 but should
+//   be verified by flashing and watching the boot log for compile errors.
+//   If nested IF rejects, see the FALLBACK note below SEQUENCE(10).
 
 // ============================================================================
 // Roster
 // ============================================================================
-ROSTER(2, "KATO Shinkansen", "F0/F1/F2")
-ROSTER(4, "KATO E233", "F0/F1/F2")
+ROSTER(2, "Train 2 (top)", "F0/F1/F2")
+ROSTER(4, "Train 4 (middle)", "F0/F1/F2")
+ROSTER(5, "Train 5 (middle, spur-stored)", "F0/F1/F2")
 
 // ============================================================================
 // Turnouts
 // ============================================================================
-TURNOUTL(1, 1, "KATO Turnout 1")
-TURNOUTL(2, 2, "KATO Turnout 2")
+TURNOUTL(1, 1, "T1 double-slip")
+TURNOUTL(2, 2, "T2 spur entry")
+TURNOUTL(3, 3, "T3 unused spur")
 
 // ============================================================================
-// Boot-time setup
+// Boot setup: power on, place turnouts in default positions
 // ============================================================================
 AUTOSTART
 POWERON
+THROW(1)              // T1 -> straight-through ("open" / no crossover)
+THROW(2)              // T2 -> middle main clear (Train 4's default)
+THROW(3)              // T3 -> straight-through (unused spur disconnected)
 DONE
 
 // ============================================================================
-// Trigger routes (visible in JMRI's Turnout Table and on WiThrottle)
+// Trigger routes
 // ============================================================================
-
-// Press </START 100> or "Start Shuttle" in WiThrottle to begin the loop.
 ROUTE(100, "Start Shuttle")
-  SET(2001)               // raise the run flag
-  SENDLOCO(2, 10)         // dispatch Train 2 to its sequence
+  SET(2001)           // raise run flag
+  RESET(2002)         // alternator: first middle is Train 4
+  SENDLOCO(2, 10)     // dispatch Train 2 first
 DONE
 
-// Press </START 101> for a graceful stop. The currently-running cycle
-// completes; the dispatch check at the end of each sequence sees the cleared
-// flag and exits. No emergency stop, no stranded train.
 ROUTE(101, "Stop Shuttle Gracefully")
-  RESET(2001)             // lower the run flag
+  RESET(2001)         // current cycle will finish, then no further dispatch
 DONE
 
 // ============================================================================
-// Train 2 (Shinkansen) sequence
+// Train 2 - top track lap
 // ============================================================================
 //
-// Tuning rationale, recorded once for both trains:
+// Direction convention:
+//   FWD = east  (Train 2 starts at the WEST end facing east)
+//   REV = west
 //
-//   FWD(80)        Cruise speed. Empirical sweet spot. Speed 100 caused
-//                  overshoot at sensor 1002 (the train coasted past the buffer
-//                  zone). Speed 60 felt unconvincingly slow visually. 80 hits
-//                  the prototype-feel-vs.-reliable-stopping balance.
+// Sensor reads:
+//   East-bound: S1 fires as transit (no AT waiting on it), S2 is the stop.
+//   West-bound: S2 fires as transit, S1 is the home stop.
 //
-//   FWD(40)        Creep speed used for the last 3 s before STOP. Slow enough
-//                  that decoder momentum (CV3/CV4) does not overshoot, fast
-//                  enough that the train does not appear to stall. Pair this
-//                  with whatever CV3/CV4 you settled on (see issue #2).
-//
-//   DELAY(3000)    Creep duration. With FWD(40) and current decoder momentum
-//                  this puts the train roughly at the buffer-near position
-//                  past the sensor. Adjust if you reposition sensors.
-//
-//   DELAYRANDOM(8000, 14000)
-//                  Station dwell. Was a fixed DELAY(10000) in v1.0.0; the
-//                  random spread (8 to 14 s) removes the metronome feel and
-//                  is more prototypical for a real timetabled stop.
-//
-//   FON(0) / FOFF(0)
-//                  Headlight on at start of cycle, off at home-station stop.
-//                  F0 is directional on Kato EM13 decoders, so the leading
-//                  lamp lights regardless of FWD/REV.
+// Tuning rationale (these values apply to all three sequences):
+//   FWD/REV(40)   Cruise speed. Halved from v1.1.0's 80 for slower, more
+//                 deliberate operation on this layout.
+//   FWD/REV(20)   Creep speed for the last 8 s before STOP. Halved from
+//                 v1.1.0's 40. With halved speed, the creep DELAY had to
+//                 grow to maintain a similar distance covered.
+//   DELAY(8000)   Creep duration. Long enough that the train moves
+//                 COMPLETELY past the sensor beam before stopping --
+//                 critical for time-slicing; if the train parks on a beam,
+//                 the next sequence's AT() will misfire.
+//   DELAYRANDOM(3000, 8000)
+//                 Random station dwell. Range tightened from v1.1.0's
+//                 8-14 s.
 
 SEQUENCE(10)
-  THROW(2)                // station turnout to Train 2's route
-  DELAY(2000)             // let the solenoid settle before motion
-  FON(0)                  // headlights on for the cycle
+  FON(0)              // headlights on for the cycle
 
-  FWD(80)                 // depart station, cruise out
-  AT(26)                  // wait for vpin 26 (sensor 1002, far end)
-  FWD(40)                 // slow to creep speed
-  DELAY(3000)             // creep for 3 s, glide to stop
+  FWD(40)             // depart west home, cruise east on top track
+  AT(26)              // wait S2 (far end of top track)
+  FWD(20)             // creep
+  DELAY(8000)         // glide past S2
   STOP
 
-  DELAYRANDOM(8000, 14000)  // far-end turnaround dwell
+  DELAYRANDOM(3000, 8000)
 
-  REV(80)                 // depart far end, cruise back
-  AT(33)                  // wait for vpin 33 (sensor 1001, home end)
-  REV(40)
-  DELAY(3000)
+  REV(40)             // depart far end, cruise west
+  AT(33)              // wait S1 (home end)
+  REV(20)
+  DELAY(8000)
   STOP
 
-  FOFF(0)                 // headlights off, train is "parked"
+  FOFF(0)             // headlights off, parked at home
 
-  DELAYRANDOM(8000, 14000)  // home-station dwell
+  DELAYRANDOM(3000, 8000)
 
-  // Graceful-stop check: if the run flag is still set, dispatch Train 4.
-  // Otherwise the sequence ends here and the shuttle stops cleanly.
-  IF(2001)
-    SENDLOCO(4, 20)
-  ENDIF
+  // Hand off to the middle track. Two top-level IF blocks honor BOTH the
+  // graceful-stop flag (2001) AND the alternator (2002) without using AND.
+  // At most one SENDLOCO fires because 2002's two states are exclusive.
+  //
+  // FALLBACK if your firmware rejects nested IF: split this into two T2
+  // sequences (10 = "T2 then T4", 11 = "T2 then T5") with duplicated bodies
+  // and chain SEQUENCE 20 -> SENDLOCO(2,11), SEQUENCE 30 -> SENDLOCO(2,10).
+  IF(2001) IF(2002) SENDLOCO(5, 30) ENDIF ENDIF
+  IF(2001) IFNOT(2002) SENDLOCO(4, 20) ENDIF ENDIF
 DONE
 
 // ============================================================================
-// Train 4 (E233) sequence
+// Train 4 - middle track lap (no spur involvement)
 // ============================================================================
+//
+// Train 4 starts at the WEST end of the middle track, facing EAST.
+// Requires T2 THROWN (middle main clear) and T3 CLOSED (no diversion).
+// Both are the default at boot.
+
 SEQUENCE(20)
-  CLOSE(2)                // station turnout to Train 4's route
-  DELAY(2000)
+  THROW(2)            // belt-and-suspenders: ensure T2 didn't drift
+  DELAY(2000)         // settle in case the turnout actually moved
   FON(0)
 
-  FWD(80)
-  AT(26)
-  FWD(40)
-  DELAY(3000)
+  FWD(40)             // depart west home, cruise east on middle
+  AT(26)              // wait S2
+  FWD(20)
+  DELAY(8000)
   STOP
 
-  DELAYRANDOM(8000, 14000)
+  DELAYRANDOM(3000, 8000)
 
-  REV(80)
-  AT(33)
   REV(40)
-  DELAY(3000)
+  AT(33)              // wait S1
+  REV(20)
+  DELAY(8000)
   STOP
 
   FOFF(0)
 
-  DELAYRANDOM(8000, 14000)
+  DELAYRANDOM(3000, 8000)
 
-  IF(2001)
-    SENDLOCO(2, 10)       // back to Train 2 -- infinite loop while flag is set
-  ENDIF
+  SET(2002)           // next middle is Train 5
+  IF(2001) SENDLOCO(2, 10) ENDIF
+DONE
+
+// ============================================================================
+// Train 5 - middle track lap with spur entry/exit
+// ============================================================================
+//
+// Train 5 starts on the bottom-left spur, facing EAST. To run a lap:
+//   1. CLOSE T2 so the spur connects to the middle main.
+//   2. FWD east: Train 5 leaves spur, joins middle track, runs to far end.
+//   3. After the dwell, REV west.
+//   4. T2 stays closed -- when Train 5 reaches T2 going west, it is
+//      diverted onto the spur and stops at home.
+//   5. Throw T2 so the middle main is clear for the next Train 4 lap.
+//
+// Train 5's home-side creep DELAY is intentionally identical to Train 2 /
+// Train 4 (8 s) for now, but Train 5 must travel further on the home leg
+// because it has to negotiate the T2 points and stop on the spur. If the
+// train falls short of the spur, increase only Train 5's home-side
+// DELAY(8000) to e.g. 12000 or 15000.
+
+SEQUENCE(30)
+  CLOSE(2)            // T2 -> spur position (so T5 can leave the spur)
+  DELAY(2000)         // turnout settle
+  FON(0)
+
+  FWD(40)             // depart spur, accelerate east on middle
+  AT(26)              // wait S2
+  FWD(20)
+  DELAY(8000)
+  STOP
+
+  DELAYRANDOM(3000, 8000)
+
+  REV(40)             // depart east, head west
+  AT(33)              // wait S1 (still on middle main; T2 ahead is closed)
+  REV(20)             // creep; T2 will divert Train 5 onto the spur
+  DELAY(8000)         // tune longer if Train 5 falls short of the spur
+  STOP
+
+  FOFF(0)
+
+  THROW(2)            // T2 back to thrown (middle main clear for next T4)
+
+  DELAYRANDOM(3000, 8000)
+
+  RESET(2002)         // next middle is Train 4
+  IF(2001) SENDLOCO(2, 10) ENDIF
 DONE
