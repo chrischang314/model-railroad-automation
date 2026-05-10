@@ -130,9 +130,11 @@ DONE
 // Tuning rationale:
 //   FWD/REV(40)   Cruise speed. Halved from v1.1.0's 80 for slower, more
 //                 deliberate operation on this layout.
-//   FWD/REV(20)   Creep speed for the last 8 s before STOP.
+//   FWD/REV(20)   Creep speed for the final slowdown before STOP.
 //   DELAY(8000)   Creep duration. Long enough that the train clears the
 //                 sensor beam before stopping. Critical for time-slicing.
+//                 Train 5 uses DELAY(10000) because its spur entry/exit
+//                 needs a longer slowdown window.
 //   DELAYRANDOM(3000, 8000)
 //                 Random station dwell.
 
@@ -238,7 +240,7 @@ SEQUENCE(30)
   FWD(40)             // depart spur, accelerate east on middle
   AT(26)              // wait S2
   FWD(20)
-  DELAY(8000)
+  DELAY(10000)        // Train 5 needs more slowdown time than T2/T4
   STOP
 
   DELAYRANDOM(3000, 8000)
@@ -246,7 +248,7 @@ SEQUENCE(30)
   REV(40)             // depart east, head west
   AT(33)              // wait S1 (still on middle main; T2 ahead is closed)
   REV(20)             // creep; T2 will divert Train 5 onto the spur
-  DELAY(8000)         // tune longer if Train 5 falls short of the spur
+  DELAY(10000)        // longer slowdown for reliable spur entry
   STOP
 
   FOFF(0)
