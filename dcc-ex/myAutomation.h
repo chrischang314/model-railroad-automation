@@ -70,11 +70,19 @@
 //      flag and SET(2002) / IF(2002) for a middle-train alternator;
 //      neither worked end-to-end on this firmware.
 //   3. Consequence: this script uses NO virtual flags and NO conditional
-//      dispatch. The cycle is a fixed deterministic chain via SENDLOCO
-//      target IDs. Train 2 has TWO sequences (10 and 11) with identical
-//      bodies but different terminal SENDLOCO targets, which is how the
-//      middle-train alternation is encoded.
-//   4. Graceful stop is currently a TODO (see open issue). For now, stop
+//      dispatch.
+//   4. SENDLOCO(loco, route) starts a NEW PARALLEL TASK. In bench testing,
+//      the first handoff (Train 2 -> Train 4) worked, but the next handoff
+//      (Train 4 -> Train 2) did not restart Train 2 reliably. This version
+//      avoids SENDLOCO entirely.
+//   5. The cycle is now a single deterministic task using FOLLOW(id) as the
+//      baton pass. Each sequence explicitly selects its own loco with
+//      SETLOCO(...) at the top, then FOLLOWs the next sequence instead of
+//      DONE/SENDLOCO.
+//   6. Train 2 has TWO sequences (10 and 11) with identical bodies but
+//      different terminal FOLLOW targets, which is how the middle-train
+//      alternation is encoded.
+//   7. Graceful stop is currently a TODO (see open issue). For now, stop
 //      with </KILL ALL>.
 
 // ============================================================================
@@ -105,17 +113,16 @@ DONE
 // Trigger routes
 // ============================================================================
 ROUTE(100, "Start Shuttle")
-  SENDLOCO(2, 10)     // dispatch Train 2 (sequence 10 -> Train 4 next)
-DONE
+  FOLLOW(10)          // start the single-task chain at Train 2 -> Train 4
 
 // ============================================================================
 // Train 2 - top track lap (TWO sequences, identical body)
 // ============================================================================
 //
 // SEQUENCE(10) and SEQUENCE(11) have IDENTICAL bodies. They differ only in
-// the final SENDLOCO target:
-//   SEQUENCE(10) -> SENDLOCO(4, 20)   (Train 4 next)
-//   SEQUENCE(11) -> SENDLOCO(5, 30)   (Train 5 next)
+// the final FOLLOW target:
+//   SEQUENCE(10) -> FOLLOW(20)   (Train 4 next)
+//   SEQUENCE(11) -> FOLLOW(30)   (Train 5 next)
 //
 // IF YOU TUNE TRAIN 2'S TIMING, EDIT BOTH SEQUENCES TO MATCH.
 //
@@ -130,13 +137,16 @@ DONE
 // Tuning rationale:
 //   FWD/REV(40)   Cruise speed. Halved from v1.1.0's 80 for slower, more
 //                 deliberate operation on this layout.
-//   FWD/REV(20)   Creep speed for the last 8 s before STOP.
+//   FWD/REV(20)   Creep speed for the final slowdown before STOP.
 //   DELAY(8000)   Creep duration. Long enough that the train clears the
 //                 sensor beam before stopping. Critical for time-slicing.
+//                 Train 5 uses DELAY(10000) because its spur entry/exit
+//                 needs a longer slowdown window.
 //   DELAYRANDOM(3000, 8000)
 //                 Random station dwell.
 
 SEQUENCE(10)          // === Train 2 lap; dispatches Train 4 ===
+  SETLOCO(2)
   FON(0)
 
   FWD(40)
@@ -157,10 +167,10 @@ SEQUENCE(10)          // === Train 2 lap; dispatches Train 4 ===
 
   DELAYRANDOM(3000, 8000)
 
-  SENDLOCO(4, 20)     // hand off to Train 4
-DONE
+  FOLLOW(20)          // hand off to Train 4 in the same EXRAIL task
 
 SEQUENCE(11)          // === Train 2 lap; dispatches Train 5 (body identical to SEQ 10) ===
+  SETLOCO(2)
   FON(0)
 
   FWD(40)
@@ -181,8 +191,7 @@ SEQUENCE(11)          // === Train 2 lap; dispatches Train 5 (body identical to 
 
   DELAYRANDOM(3000, 8000)
 
-  SENDLOCO(5, 30)     // hand off to Train 5
-DONE
+  FOLLOW(30)          // hand off to Train 5 in the same EXRAIL task
 
 // ============================================================================
 // Train 4 - middle track lap (no spur involvement)
@@ -193,6 +202,7 @@ DONE
 // Both are the default at boot.
 
 SEQUENCE(20)
+  SETLOCO(4)
   THROW(2)            // belt-and-suspenders: ensure T2 didn't drift
   DELAY(2000)         // settle in case the turnout actually moved
   FON(0)
@@ -215,8 +225,7 @@ SEQUENCE(20)
 
   DELAYRANDOM(3000, 8000)
 
-  SENDLOCO(2, 11)     // hand back to Train 2; SEQ 11 will dispatch Train 5 next
-DONE
+  FOLLOW(11)          // hand back to Train 2; SEQ 11 will dispatch Train 5 next
 
 // ============================================================================
 // Train 5 - middle track lap with spur entry/exit
@@ -231,6 +240,7 @@ DONE
 //   5. Throw T2 so the middle main is clear for the next Train 4 lap.
 
 SEQUENCE(30)
+  SETLOCO(5)
   CLOSE(2)            // T2 -> spur position (so T5 can leave the spur)
   DELAY(2000)         // turnout settle
   FON(0)
@@ -238,7 +248,7 @@ SEQUENCE(30)
   FWD(40)             // depart spur, accelerate east on middle
   AT(26)              // wait S2
   FWD(20)
-  DELAY(8000)
+  DELAY(10000)        // Train 5 needs more slowdown time than T2/T4
   STOP
 
   DELAYRANDOM(3000, 8000)
@@ -246,7 +256,7 @@ SEQUENCE(30)
   REV(40)             // depart east, head west
   AT(33)              // wait S1 (still on middle main; T2 ahead is closed)
   REV(20)             // creep; T2 will divert Train 5 onto the spur
-  DELAY(8000)         // tune longer if Train 5 falls short of the spur
+  DELAY(10000)        // longer slowdown for reliable spur entry
   STOP
 
   FOFF(0)
@@ -255,5 +265,4 @@ SEQUENCE(30)
 
   DELAYRANDOM(3000, 8000)
 
-  SENDLOCO(2, 10)     // hand back to Train 2; SEQ 10 will dispatch Train 4 next
-DONE
+  FOLLOW(10)          // hand back to Train 2; SEQ 10 will dispatch Train 4 next
