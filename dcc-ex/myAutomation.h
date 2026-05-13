@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.10.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.11.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -106,6 +106,14 @@
 //   middle train westbound. Train 2 waits for the middle train to clear S2
 //   before arming AT(26) as its arrival sensor.
 //
+//   Bench result: Train 2 and Train 4 crossed too close to S2, creating one
+//   continuous S2 beam interruption. Train 2 never saw a separate S2 arrival
+//   and overran the east end.
+//
+//   v3.11 (this release): reverse the staging for that return phase. Train
+//   4/5 leaves S2 first, S2 clears, then Train 2 departs S1 shortly after.
+//   This gives S2 a clean off/on gap before Train 2 reaches it.
+//
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
 //      All conditionals here are single-level IF/IFNOT ... ELSE ... ENDIF.
@@ -123,16 +131,17 @@
 //   - Middle task: alternates Train 4 / Train 5 on the middle track.
 //
 //   Trains run OPPOSITE directions and pass in the middle. Direction phase
-//   is held by a 4-phase rendezvous barrier between every leg
-//   (SET own, AT partner, RESET own, AT(-) partner). Whoever finishes its
-//   random dwell first waits; both depart together.
+//   is held by staged rendezvous barriers:
+//     - Westbound top / eastbound middle: Train 2 leaves S2 first, then
+//       releases the middle train after S2 clears.
+//     - Eastbound top / westbound middle: middle train leaves S2 first, then
+//       Train 2 leaves S1 after S2 has had a clean clear interval.
 //
 // SENSOR AMBIGUITY HANDLING
-//   S1/S2 beams cross both tracks. Two ambiguities:
-//     1. DEPARTURE: each leg begins with DELAY(8000) before AT() so the
-//        partner's departure transit clears the shared beam first.
-//     2. ARRIVAL: trains always run opposite directions, so arrival sensors
-//        differ (top east + mid west -> top arrives at S2, mid at S1).
+//   S1/S2 beams cross both tracks. Every leg must consume its own departure
+//   beam break with AFTER(departure_sensor) before arming AT(arrival_sensor).
+//   Where both trains share S2 at the phase change, staged release creates a
+//   clean off/on gap so the RIR4 can see two separate beam-break events.
 //
 // STARTUP STAGGER
 //   Both routes can be invoked in any order. The top task runs ONE solo
@@ -147,7 +156,8 @@
 //   ONLY at its HOME arrival (Train 2: end of SEQ 102; middle: end of SEQ 202
 //   for T4 or 204 for T5) and routes to its parking sequence. The parking
 //   sequence kills the lights, latches its parked flag, finalizes the
-//   partner's barrier (in case the partner was already mid-AT), and ends.
+//   partner's barrier (in case the partner was already mid-AT), restores
+//   turnouts to the startup state, and ends.
 //
 //   Restart after a graceful stop: send </START 100> again. ROUTE(100)
 //   clears the stale flags, spawns the middle route, and continues as the
@@ -333,15 +343,14 @@ SEQUENCE(103)               // === east leg (Train 2 going away; mid going west)
   SETLOCO(2)
   IFNOT(2013)               // skip barrier if mid has parked
     AT(2011)                // middle staged and waiting for top to clear S1
+    SET(2010)               // release middle westbound leg first
+    AT(-2011)               // wait until middle acknowledges by dropping ready
+    RESET(2010)
+    AFTER(26)               // wait for middle train's S2 departure to clear
+    DELAY(1500)             // S2 separation gap before Train 2 starts east
   ENDIF
   FWD(40)
   AFTER(33)                 // ignore Train 2's S1 departure beam break
-  IFNOT(2013)
-    SET(2010)               // release middle westbound leg
-    AT(-2011)               // wait until middle acknowledges by dropping ready
-    RESET(2010)
-    AFTER(26)               // ignore middle train's S2 departure beam break
-  ENDIF
   AT(26)                    // S2 arrival
   FWD(20)
   DELAY(8000)
@@ -351,6 +360,7 @@ SEQUENCE(103)               // === east leg (Train 2 going away; mid going west)
 
 SEQUENCE(150)               // === top parking: lights off, finalize barrier, end ===
   SETLOCO(2)
+  STOP
   FOFF(0)
   SET(2012)                 // tell mid: top is parked, skip future barriers
   SET(2010)                 // unblock any partner currently in AT(2010)
@@ -459,9 +469,14 @@ SEQUENCE(204)               // === T5 west leg: returns to spur via still-CLOSED
 
 SEQUENCE(250)               // === mid parking: lights off, finalize barrier, end ===
   SETLOCO(4)
+  STOP
   FOFF(0)                   // T4 lights off (was on continuously since SEQ 220)
   SETLOCO(5)
+  STOP
   FOFF(0)                   // T5 lights off (already off if parking from 204)
+  THROW(1)                  // restore startup turnout state
+  THROW(2)
+  THROW(3)
   SET(2013)                 // tell top: mid is parked, skip future barriers
   SET(2011)                 // unblock any partner currently in AT(2011)
   DELAY(500)
