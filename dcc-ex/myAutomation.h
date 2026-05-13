@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.11.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.12.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -113,6 +113,17 @@
 //   v3.11 (this release): reverse the staging for that return phase. Train
 //   4/5 leaves S2 first, S2 clears, then Train 2 departs S1 shortly after.
 //   This gives S2 a clean off/on gap before Train 2 reaches it.
+//
+//   Bench result: first crossing still had S1 overlap because Train 4 left
+//   west/S1 too late; return crossing had S1 false-arrival because Train 2
+//   left west/S1 after Train 4 had already armed AT(33).
+//
+//   v3.12 (this release):
+//     - First crossing: release Train 4/5 earlier, shortly after Train 2
+//       starts westbound instead of waiting for Train 2 to fully clear S2.
+//     - Return crossing: Train 2 departs sooner after Train 4/5 clears S2,
+//       and Train 4/5 explicitly AFTER(33)s Train 2's S1 departure before
+//       arming AT(33).
 //
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
@@ -319,12 +330,13 @@ SEQUENCE(102)               // === west leg (Train 2 returning home; mid going e
     AT(2011)                // middle staged and waiting for top to clear S2
   ENDIF
   REV(40)
-  AFTER(26)                 // ignore Train 2's S2 departure beam break
   IFNOT(2013)
-    SET(2010)               // release middle eastbound leg
+    DELAY(500)              // start Train 4/5 close behind Train 2
+    SET(2010)               // release middle eastbound leg early
     AT(-2011)               // wait until middle acknowledges by dropping ready
     RESET(2010)
   ENDIF
+  AFTER(26)                 // ignore Train 2's S2 departure beam break
   IFNOT(2013)
     AFTER(33)               // ignore Train 4/5's S1 departure beam break
   ENDIF
@@ -347,7 +359,7 @@ SEQUENCE(103)               // === east leg (Train 2 going away; mid going west)
     AT(-2011)               // wait until middle acknowledges by dropping ready
     RESET(2010)
     AFTER(26)               // wait for middle train's S2 departure to clear
-    DELAY(1500)             // S2 separation gap before Train 2 starts east
+    DELAY(500)              // short S2 gap before Train 2 starts east
   ENDIF
   FWD(40)
   AFTER(33)                 // ignore Train 2's S1 departure beam break
@@ -413,6 +425,9 @@ SEQUENCE(202)               // === T4 west leg (Train 2 going east) ===
   ENDIF
   REV(40)
   AFTER(26)                 // ignore Train 4's S2 departure beam break
+  IFNOT(2012)
+    AFTER(33)               // ignore Train 2's S1 departure beam break
+  ENDIF
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
@@ -454,6 +469,9 @@ SEQUENCE(204)               // === T5 west leg: returns to spur via still-CLOSED
   ENDIF
   REV(40)
   AFTER(26)                 // ignore Train 5's S2 departure beam break
+  IFNOT(2012)
+    AFTER(33)               // ignore Train 2's S1 departure beam break
+  ENDIF
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(10000)              // longer creep -- spur entry transition
