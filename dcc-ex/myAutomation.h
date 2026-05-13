@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.8.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.9.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -86,6 +86,16 @@
 //   waits until it has cleared S2, then releases the middle task. The middle
 //   task then starts eastbound and arms AT(26) immediately.
 //
+//   Bench result: both trains did start in opposite directions, but each
+//   immediately saw its DEPARTURE beam as an arrival event: Train 2 tripped S2
+//   while leaving the east end; Train 4 tripped S1 while leaving the west end.
+//
+//   v3.9 (this release): every movement leg now uses AFTER(departure_sensor)
+//   before arming AT(arrival_sensor). Per the official EXRAIL docs, AFTER waits
+//   until the sensor has triggered and then gone off for 0.5 seconds. That lets
+//   a beam-break sensor act as both departure and arrival sensor without the
+//   train treating its own departure as its destination.
+//
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
 //      All conditionals here are single-level IF/IFNOT ... ELSE ... ENDIF.
@@ -160,20 +170,15 @@
 //   2013 - mid_parked        latched by SEQ 250 once middle train has parked
 //
 // SHARED-BEAM MOTION RULE
-//   Do not use a long blind DELAY before arming AT() on a short approach.
-//   If the train reaches the beam during the delay, the event is missed and
-//   the train runs through the stop point.
+//   S1/S2 are beam-breaks across BOTH tracks. Every leg must ignore its
+//   departure beam before listening for its arrival beam:
 //
-//   If the partner is already moving away from the beam, the approaching train
-//   can wait for clear, then move:
+//     Eastbound:  FWD(40), AFTER(33), AT(26), creep, STOP
+//     Westbound:  REV(40), AFTER(26), AT(33), creep, STOP
 //
-//     AT(-26)    // wait until S2 is clear
-//     FWD(40)
-//     AT(26)     // immediately listen for this train's S2 arrival
-//
-//   If the partner is PARKED on/near the beam, do not make the approaching
-//   train wait for clear. Instead, make the parked train depart first, wait
-//   until it clears the beam, then release the approaching train.
+//   AFTER(...) is not a station stop. It consumes the initial departure beam
+//   break and waits for the beam to be clear/off for 0.5 s before continuing.
+//   This prevents immediate false arrivals when a train leaves a sensor.
 //
 // ============================================================================
 // TURNOUT POLICY (decoders inverted: THROWN = main, CLOSED = diverging)
@@ -280,6 +285,7 @@ SEQUENCE(101)               // === first east leg (solo; mid is at first barrier
   SETLOCO(2)
   FON(0)
   FWD(40)
+  AFTER(33)                 // ignore Train 2's S1 departure beam break
   AT(26)                    // S2 arrival -- middle hasn't moved yet, no ambiguity
   FWD(20)
   DELAY(8000)
@@ -293,13 +299,15 @@ SEQUENCE(102)               // === west leg (Train 2 returning home; mid going e
     AT(2011)                // middle staged and waiting for top to clear S2
   ENDIF
   REV(40)
-  AT(-26)                   // Train 2 clears S2 before middle starts east
+  AFTER(26)                 // ignore Train 2's S2 departure beam break
   IFNOT(2013)
     SET(2010)               // release middle eastbound leg
     AT(-2011)               // wait until middle acknowledges by dropping ready
     RESET(2010)
   ENDIF
-  AT(-33)                   // wait until middle train has cleared S1
+  IFNOT(2013)
+    AFTER(33)               // ignore Train 4/5's S1 departure beam break
+  ENDIF
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
@@ -319,8 +327,8 @@ SEQUENCE(103)               // === east leg (Train 2 going away; mid going west)
     RESET(2010)
     AT(-2011)
   ENDIF
-  AT(-26)                   // wait until middle train has cleared S2
   FWD(40)
+  AFTER(33)                 // ignore Train 2's S1 departure beam break
   AT(26)                    // S2 arrival
   FWD(20)
   DELAY(8000)
@@ -364,6 +372,7 @@ SEQUENCE(201)               // === T4 east leg (Train 2 going west) ===
     AT(-2010)
   ENDIF
   FWD(40)
+  AFTER(33)                 // ignore Train 4's S1 departure beam break
   AT(26)                    // S2 arrival
   FWD(20)
   DELAY(8000)
@@ -380,7 +389,10 @@ SEQUENCE(202)               // === T4 west leg (Train 2 going east) ===
     AT(-2010)
   ENDIF
   REV(40)
-  AT(-33)                   // wait until Train 2 has cleared S1
+  AFTER(26)                 // ignore Train 4's S2 departure beam break
+  IFNOT(2012)
+    AFTER(33)               // ignore Train 2's S1 departure beam break
+  ENDIF
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
@@ -404,6 +416,7 @@ SEQUENCE(203)               // === T5 east leg: leaves spur, runs to east end ==
     AT(-2010)
   ENDIF
   FWD(40)
+  AFTER(33)                 // ignore Train 5's S1 departure beam break
   AT(26)                    // S2 arrival
   FWD(20)
   DELAY(10000)              // longer creep -- spur exit transition
@@ -420,7 +433,10 @@ SEQUENCE(204)               // === T5 west leg: returns to spur via still-CLOSED
     AT(-2010)
   ENDIF
   REV(40)
-  AT(-33)                   // wait until Train 2 has cleared S1
+  AFTER(26)                 // ignore Train 5's S2 departure beam break
+  IFNOT(2012)
+    AFTER(33)               // ignore Train 2's S1 departure beam break
+  ENDIF
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(10000)              // longer creep -- spur entry transition
