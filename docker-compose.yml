@@ -1,0 +1,13 @@
+services:
+  train-control:
+    build:
+      context: ./web-control
+    image: model-railroad-web-control:latest
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      DCCEX_HOST: "${DCCEX_HOST:-dccex.local}"
+      DCCEX_PORT: "${DCCEX_PORT:-2560}"
+      DCCEX_MOCK: "${DCCEX_MOCK:-false}"
+      CONTROL_TOKEN: "${CONTROL_TOKEN:-}"

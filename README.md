@@ -111,6 +111,7 @@ Spur:             \--- Train 5 home
 | Goal | File |
 | --- | --- |
 | Current EXRAIL automation | [`dcc-ex/myAutomation.h`](dcc-ex/myAutomation.h) |
+| Run browser-based train control | [`web-control/README.md`](web-control/README.md) |
 | Stable backup copy | [`dcc-ex/myAutomation-backup.h`](dcc-ex/myAutomation-backup.h) |
 | Future-LLM handoff and troubleshooting | [`docs/handoff-document.md`](docs/handoff-document.md) |
 | Fast rules and pitfalls | [`docs/lessons-learned.md`](docs/lessons-learned.md) |
@@ -128,6 +129,18 @@ Spur:             \--- Train 5 home
 - With shared beam sensors, use `AFTER(...)` only for the train's own
   departure beam.
 - Do not add random departure delays while S1/S2 span both tracks.
+
+## Web Control
+
+A small Docker-deployable web server lives in [`web-control/`](web-control/).
+It can connect directly to the EX-CSB1 on TCP port 2560, or to JMRI's DCC++
+Over TCP bridge. The first UI includes shuttle start/stop, emergency stop,
+track power, turnout control, train throttle controls, F0/headlight toggles,
+sensor status, and a command log.
+
+```bash
+docker compose up --build
+```
 
 ## License
 

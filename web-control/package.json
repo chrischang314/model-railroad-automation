@@ -1,0 +1,14 @@
+{
+  "name": "model-railroad-web-control",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local web control panel for a DCC-EX model railroad command station.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "mock": "node -e \"process.env.DCCEX_MOCK='true'; require('./src/server')\""
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

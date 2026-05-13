@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Model Railroad Control</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Model Railroad Control</h1>
+        <p id="connectionSummary">Connecting...</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="refreshButton" class="button secondary">Refresh</button>
+        <button id="powerOnButton" class="button secondary">Power On</button>
+        <button id="powerOffButton" class="button secondary">Power Off</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel command-panel">
+        <div class="panel-heading">
+          <h2>Automation</h2>
+          <span id="automationState" class="status-pill unknown">Unknown</span>
+        </div>
+        <div class="command-row">
+          <button id="startButton" class="button primary">Start Shuttle</button>
+          <button id="stopButton" class="button warning">Graceful Stop</button>
+          <button id="emergencyButton" class="button danger">Emergency Stop</button>
+        </div>
+        <div id="authPanel" class="auth-panel hidden">
+          <label for="tokenInput">Control token</label>
+          <input id="tokenInput" type="password" autocomplete="current-password">
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Sensors</h2>
+        </div>
+        <div id="sensorGrid" class="sensor-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Turnouts</h2>
+        </div>
+        <div id="turnoutList" class="stack"></div>
+      </section>
+
+      <section class="panel trains-panel">
+        <div class="panel-heading">
+          <h2>Trains</h2>
+        </div>
+        <div id="trainList" class="stack"></div>
+      </section>
+
+      <section class="panel messages-panel">
+        <div class="panel-heading">
+          <h2>Command Log</h2>
+        </div>
+        <pre id="messageLog" class="message-log"></pre>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
