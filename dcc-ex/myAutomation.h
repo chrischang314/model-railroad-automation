@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.14.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.15.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -144,6 +144,15 @@
 //   now consumes ONLY its own departure beam, then immediately arms the
 //   opposite arrival beam.
 //
+//   Bench result: Train 5's west-to-east departure from the spur can hit S1
+//   late enough that Train 2 has already armed AT(33) for its east-to-west
+//   home arrival. Train 2 then treats Train 5's S1 departure as its own
+//   arrival and stops early.
+//
+//   v3.15 (this release): add a software handshake for middle-train S1
+//   departure clear. The middle task SETs vpin 2014 after Train 4/5 has
+//   completed AFTER(33). Train 2 waits for 2014 before arming AT(33).
+//
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
 //      All conditionals here are single-level IF/IFNOT ... ELSE ... ENDIF.
@@ -218,6 +227,7 @@
 //   2011 - mid_ready          barrier flag raised by middle task
 //   2012 - top_parked        latched by SEQ 150 once Train 2 has parked
 //   2013 - mid_parked        latched by SEQ 250 once middle train has parked
+//   2014 - mid_s1_clear      SET by middle task after S1 departure clears
 //
 // SHARED-BEAM MOTION RULE
 //   S1/S2 are beam-breaks across BOTH tracks. Every leg must ignore its
@@ -289,6 +299,7 @@ RESET(2010)
 RESET(2011)
 RESET(2012)
 RESET(2013)
+RESET(2014)
 DONE
 
 // ============================================================================
@@ -304,6 +315,7 @@ ROUTE(100, "Start Shuttle")
   RESET(2011)
   RESET(2012)
   RESET(2013)
+  RESET(2014)
   START(200)              // spawn middle route, which FOLLOWs SEQ 220
   FOLLOW(101)             // current route task becomes top task (Train 2)
 
@@ -350,11 +362,16 @@ SEQUENCE(102)               // === west leg (Train 2 returning home; mid going e
   ENDIF
   REV(40)
   IFNOT(2013)
+    RESET(2014)             // wait for active middle train to clear S1
     SET(2010)               // release middle eastbound leg immediately
     AT(-2011)               // wait until middle acknowledges by dropping ready
     RESET(2010)
   ENDIF
   AFTER(26)                 // ignore Train 2's S2 departure beam break
+  IFNOT(2013)
+    AT(2014)                // middle train has consumed/cleared S1 departure
+    RESET(2014)
+  ENDIF
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
@@ -423,6 +440,7 @@ SEQUENCE(201)               // === T4 east leg (Train 2 going west) ===
   ENDIF
   FWD(40)
   AFTER(33)                 // ignore Train 4's S1 departure beam break
+  SET(2014)                 // tell Train 2 S1 is clear now
   AT(26)                    // S2 arrival
   FWD(20)
   DELAY(8000)
@@ -464,6 +482,7 @@ SEQUENCE(203)               // === T5 east leg: leaves spur, runs to east end ==
   ENDIF
   FWD(40)
   AFTER(33)                 // ignore Train 5's S1 departure beam break
+  SET(2014)                 // tell Train 2 S1 is clear now
   AT(26)                    // S2 arrival
   FWD(20)
   DELAY(10000)              // longer creep -- spur exit transition
