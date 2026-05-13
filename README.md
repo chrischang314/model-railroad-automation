@@ -12,10 +12,11 @@ alternating via a turnout-managed station.
 
 ## Quick start
 
-Trigger the shuttle (once configured):
+Trigger the shuttle (once configured; send BOTH commands, in either order):
 
 ```
 </START 100>
+</START 200>
 ```
 
 Stop gracefully (current cycle finishes, then no further dispatch):

@@ -78,7 +78,8 @@ should be re-applied after every CSB1 reflash.
 
 | Command | What it does |
 | --- | --- |
-| `</START 100>` | Start the shuttle (sets run flag, dispatches Train 2). |
+| `</START 100>` | Spawn the top task (Train 2). Send WITH `</START 200>` to start the full parallel shuttle. |
+| `</START 200>` | Spawn the middle task (Train 4 / Train 5 alternating). Send with `</START 100>`. |
 | `</START 110>` | Stop the shuttle gracefully (sets stop flag; both trains return home, then halt). |
 | `</START 10 2>` | Start sequence 10 on loco 2. |
 | `</PAUSE>` | Pause every running EXRAIL task (cooperative). |
