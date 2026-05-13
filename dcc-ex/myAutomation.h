@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.7.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.8.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -78,6 +78,14 @@
 //   are short enough to overrun. The approaching train now waits for S2 to
 //   clear with AT(-26), starts moving, and immediately arms AT(26).
 //
+//   Bench result: deadlock. Train 4 was waiting for S2 to clear, but Train 2
+//   was still parked on/near S2 and had not yet started westbound.
+//
+//   v3.8 (this release): for the Train 2 west / middle east phase, the middle
+//   task stages at its barrier while Train 2 starts westbound first. Train 2
+//   waits until it has cleared S2, then releases the middle task. The middle
+//   task then starts eastbound and arms AT(26) immediately.
+//
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
 //      All conditionals here are single-level IF/IFNOT ... ELSE ... ENDIF.
@@ -146,20 +154,26 @@
 // ============================================================================
 //
 //   2001 - stop flag         SET by ROUTE(110), RESET by ROUTE(100)
-//   2010 - top_ready         barrier flag raised by top task
-//   2011 - mid_ready         barrier flag raised by middle task
+//   2010 - top_ready/release  barrier flag raised by top task
+//   2011 - mid_ready          barrier flag raised by middle task
 //   2012 - top_parked        latched by SEQ 150 once Train 2 has parked
 //   2013 - mid_parked        latched by SEQ 250 once middle train has parked
 //
 // SHARED-BEAM MOTION RULE
 //   Do not use a long blind DELAY before arming AT() on a short approach.
 //   If the train reaches the beam during the delay, the event is missed and
-//   the train runs through the stop point. For the train approaching a beam
-//   the partner just occupied, wait for that beam to clear first:
+//   the train runs through the stop point.
+//
+//   If the partner is already moving away from the beam, the approaching train
+//   can wait for clear, then move:
 //
 //     AT(-26)    // wait until S2 is clear
 //     FWD(40)
 //     AT(26)     // immediately listen for this train's S2 arrival
+//
+//   If the partner is PARKED on/near the beam, do not make the approaching
+//   train wait for clear. Instead, make the parked train depart first, wait
+//   until it clears the beam, then release the approaching train.
 //
 // ============================================================================
 // TURNOUT POLICY (decoders inverted: THROWN = main, CLOSED = diverging)
@@ -276,13 +290,16 @@ SEQUENCE(101)               // === first east leg (solo; mid is at first barrier
 SEQUENCE(102)               // === west leg (Train 2 returning home; mid going east) ===
   SETLOCO(2)
   IFNOT(2013)               // skip barrier if mid has parked
-    SET(2010)
-    AT(2011)
-    RESET(2010)
-    AT(-2011)
+    AT(2011)                // middle staged and waiting for top to clear S2
   ENDIF
   REV(40)
-  DELAY(8000)               // mask middle's east-departure transit across S1
+  AT(-26)                   // Train 2 clears S2 before middle starts east
+  IFNOT(2013)
+    SET(2010)               // release middle eastbound leg
+    AT(-2011)               // wait until middle acknowledges by dropping ready
+    RESET(2010)
+  ENDIF
+  AT(-33)                   // wait until middle train has cleared S1
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
@@ -341,12 +358,11 @@ SEQUENCE(201)               // === T4 east leg (Train 2 going west) ===
   SETLOCO(4)
   THROW(2)                  // re-assert after a T5 -> T4 transition
   IFNOT(2012)               // skip barrier if top has parked
-    SET(2011)
+    SET(2011)               // stage; wait for Train 2 to clear S2
     AT(2010)
     RESET(2011)
     AT(-2010)
   ENDIF
-  AT(-26)                   // wait until Train 2 has cleared S2
   FWD(40)
   AT(26)                    // S2 arrival
   FWD(20)
@@ -364,7 +380,7 @@ SEQUENCE(202)               // === T4 west leg (Train 2 going east) ===
     AT(-2010)
   ENDIF
   REV(40)
-  DELAY(8000)               // mask Train 2's east-departure transit across S1
+  AT(-33)                   // wait until Train 2 has cleared S1
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
@@ -382,12 +398,11 @@ SEQUENCE(203)               // === T5 east leg: leaves spur, runs to east end ==
   DELAY(2000)
   FON(0)
   IFNOT(2012)
-    SET(2011)
+    SET(2011)               // stage; wait for Train 2 to clear S2
     AT(2010)
     RESET(2011)
     AT(-2010)
   ENDIF
-  AT(-26)                   // wait until Train 2 has cleared S2
   FWD(40)
   AT(26)                    // S2 arrival
   FWD(20)
@@ -405,7 +420,7 @@ SEQUENCE(204)               // === T5 west leg: returns to spur via still-CLOSED
     AT(-2010)
   ENDIF
   REV(40)
-  DELAY(8000)
+  AT(-33)                   // wait until Train 2 has cleared S1
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(10000)              // longer creep -- spur entry transition
