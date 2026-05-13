@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.13.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.14.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -134,6 +134,16 @@
 //   two task scheduler allows. We still use AFTER(...) gates to consume the
 //   departure beam breaks before arming arrival sensors.
 //
+//   Bench result: trains departed together cleanly, but some legs still blew
+//   past the station. Root cause: the script still had "partner departure"
+//   AFTER(...) waits. If the partner had already cleared that beam, AFTER()
+//   consumed the NEXT trigger -- the train's real arrival -- and AT(...) armed
+//   too late.
+//
+//   v3.14 (this release): remove partner-departure AFTER(...) waits. Each leg
+//   now consumes ONLY its own departure beam, then immediately arms the
+//   opposite arrival beam.
+//
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
 //      All conditionals here are single-level IF/IFNOT ... ELSE ... ENDIF.
@@ -216,9 +226,9 @@
 //     Eastbound:  FWD(40), AFTER(33), AT(26), creep, STOP
 //     Westbound:  REV(40), AFTER(26), AT(33), creep, STOP
 //
-//   AFTER(...) is not a station stop. It consumes the initial departure beam
-//   break and waits for the beam to be clear/off for 0.5 s before continuing.
-//   This prevents immediate false arrivals when a train leaves a sensor.
+//   AFTER(...) is only used for the train's OWN departure beam. Do not use it
+//   for a partner train's departure: if that departure already cleared, AFTER()
+//   can consume this train's real station arrival and cause an overrun.
 //
 // ============================================================================
 // TURNOUT POLICY (decoders inverted: THROWN = main, CLOSED = diverging)
@@ -345,9 +355,6 @@ SEQUENCE(102)               // === west leg (Train 2 returning home; mid going e
     RESET(2010)
   ENDIF
   AFTER(26)                 // ignore Train 2's S2 departure beam break
-  IFNOT(2013)
-    AFTER(33)               // ignore Train 4/5's S1 departure beam break
-  ENDIF
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
@@ -367,7 +374,6 @@ SEQUENCE(103)               // === east leg (Train 2 going away; mid going west)
     SET(2010)               // release middle westbound leg immediately
     AT(-2011)               // wait until middle acknowledges by dropping ready
     RESET(2010)
-    AFTER(26)               // wait for middle train's S2 departure to clear
   ELSE
     FWD(40)
   ENDIF
@@ -434,9 +440,6 @@ SEQUENCE(202)               // === T4 west leg (Train 2 going east) ===
   ENDIF
   REV(40)
   AFTER(26)                 // ignore Train 4's S2 departure beam break
-  IFNOT(2012)
-    AFTER(33)               // ignore Train 2's S1 departure beam break
-  ENDIF
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
@@ -478,9 +481,6 @@ SEQUENCE(204)               // === T5 west leg: returns to spur via still-CLOSED
   ENDIF
   REV(40)
   AFTER(26)                 // ignore Train 5's S2 departure beam break
-  IFNOT(2012)
-    AFTER(33)               // ignore Train 2's S1 departure beam break
-  ENDIF
   AT(33)                    // S1 arrival
   REV(20)
   DELAY(10000)              // longer creep -- spur entry transition
