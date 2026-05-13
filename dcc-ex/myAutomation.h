@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.4.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.5.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -11,13 +11,12 @@
 //   Spur (BL):       \--- Train 5 home (off T2_t)
 //
 // ============================================================================
-// v3.4 CHANGES (single-command startup for both parallel tasks)
+// v3.5 CHANGES (single-command startup with one spawned task)
 // ============================================================================
 //
-// SYMPTOM in v3.3: </START 100> makes Train 2 run left-to-right, then the
-// program stalls at SEQ 102's AT(2011). Root cause: v3.3 required the user to
-// send BOTH </START 100> and </START 200>; </START 100> only spawned the top
-// task, so the middle task never SET(2011).
+// SYMPTOM in v3.3/v3.4: </START 100> makes Train 2 run left-to-right, then
+// the program stalls at SEQ 102's AT(2011). The middle task never reaches
+// SEQ 201 far enough to SET(2011).
 //
 // HISTORY OF SPAWN ATTEMPTS:
 //   v3.1: ROUTE(100) used SENDLOCO(4, 200) to spawn the middle task.
@@ -39,15 +38,24 @@
 //       </START 100>     spawn the top task    (Train 2 on the top track)
 //       </START 200>     spawn the middle task (Train 4 / Train 5 alternating)
 //
-//   v3.4 (this release): make </START 100> the single normal start command.
-//   ROUTE(100) uses the documented EXRAIL START(id) macro to spawn BOTH
-//   sequence tasks:
+//   v3.4: make </START 100> the single normal start command. ROUTE(100)
+//   used two documented EXRAIL START(id) calls:
 //
 //       START(101)       top task
 //       START(220)       middle task
 //
-//   Route 200 is retained as a diagnostic "middle-only" starter, but should
-//   not be used for normal operation.
+//   Bench result: Train 2 started, but the middle task still did not. This
+//   suggests this firmware either does not honor the second START() inside
+//   one route, or the first START() yields/ends the route before the second
+//   one runs.
+//
+//   v3.5 (this release): use only ONE spawned task. ROUTE(100) does:
+//
+//       START(220)       spawn middle task
+//       FOLLOW(101)      current route task becomes the top task
+//
+//   This leaves Train 2 in the normal </START 100> route task and uses
+//   START only for the one extra concurrent task we actually need.
 //
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
@@ -92,9 +100,9 @@
 //   sequence kills the lights, latches its parked flag, finalizes the
 //   partner's barrier (in case the partner was already mid-AT), and ends.
 //
-//   Restart after a graceful stop: send </START 100> and </START 200> again.
-//   Each command spawns a fresh task, and ROUTE(100) clears the stale flags
-//   so the new run begins from a clean state.
+//   Restart after a graceful stop: send </START 100> again. ROUTE(100)
+//   clears the stale flags, spawns the middle task, and continues as the
+//   top task, so the new run begins from a clean state.
 //
 //   Asymmetric park: at any instant one task is "home" and the other is
 //   "away," so they park on different legs. Whichever parks first SETs its
@@ -186,8 +194,8 @@ DONE
 // Trigger routes
 // ============================================================================
 //
-// </START 100> is the single normal start command. It clears stale flags, then
-// uses START(id) to spawn the top and middle sequence tasks in parallel.
+// </START 100> is the single normal start command. It clears stale flags,
+// spawns the middle task, then continues as the top task.
 
 ROUTE(100, "Start Shuttle")
   RESET(2001)             // clear stop flag from any previous run
@@ -195,13 +203,11 @@ ROUTE(100, "Start Shuttle")
   RESET(2011)
   RESET(2012)
   RESET(2013)
-  START(101)              // spawn top task (Train 2)
   START(220)              // spawn middle task (Train 4 / Train 5)
-DONE
+  FOLLOW(101)             // current route task becomes top task (Train 2)
 
 ROUTE(200, "DEBUG: Start Middle Only")
-  START(220)              // diagnostic only; do not use for normal startup
-DONE
+  FOLLOW(220)             // diagnostic only; do not use for normal startup
 
 ROUTE(110, "Stop Shuttle Gracefully")
   SET(2001)
@@ -281,7 +287,7 @@ DONE
 // MIDDLE TASK: alternates Train 4 lap and Train 5 lap
 // ============================================================================
 //
-// 220 (turnout setup + lights)  -> runs once at each </START 200>
+// 220 (turnout setup + lights)  -> runs once at each full shuttle start
 // 201 = T4 east leg (away), 202 = T4 west leg (home)  -> stop check here
 // 203 = T5 east leg (away), 204 = T5 west leg (home)  -> stop check here
 // 250 = mid parking (entered from 202 or 204 when stop flag set)
