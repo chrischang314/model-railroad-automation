@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.5.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.6.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -11,10 +11,10 @@
 //   Spur (BL):       \--- Train 5 home (off T2_t)
 //
 // ============================================================================
-// v3.5 CHANGES (single-command startup with one spawned task)
+// v3.6 CHANGES (spawn the middle ROUTE, not the middle SEQUENCE)
 // ============================================================================
 //
-// SYMPTOM in v3.3/v3.4: </START 100> makes Train 2 run left-to-right, then
+// SYMPTOM in v3.3/v3.4/v3.5: </START 100> makes Train 2 run left-to-right, then
 // the program stalls at SEQ 102's AT(2011). The middle task never reaches
 // SEQ 201 far enough to SET(2011).
 //
@@ -56,6 +56,18 @@
 //
 //   This leaves Train 2 in the normal </START 100> route task and uses
 //   START only for the one extra concurrent task we actually need.
+//
+//   Bench result: still stalled. Diagnostic </START 290> (SET 2011) released
+//   Train 2, proving the bitmap barrier works and the middle task still was
+//   not starting.
+//
+//   v3.6 (this release): route 100 now starts ROUTE(200), not SEQUENCE(220):
+//
+//       START(200)       spawn "DEBUG: Start Middle Only" route
+//       FOLLOW(101)      current route task becomes the top task
+//
+//   ROUTE(200) immediately FOLLOWs SEQUENCE(220). This mirrors the external
+//   command path (`</START 200>`) that DCC-EX already knows how to spawn.
 //
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
@@ -101,7 +113,7 @@
 //   partner's barrier (in case the partner was already mid-AT), and ends.
 //
 //   Restart after a graceful stop: send </START 100> again. ROUTE(100)
-//   clears the stale flags, spawns the middle task, and continues as the
+//   clears the stale flags, spawns the middle route, and continues as the
 //   top task, so the new run begins from a clean state.
 //
 //   Asymmetric park: at any instant one task is "home" and the other is
@@ -196,7 +208,7 @@ DONE
 // ============================================================================
 //
 // </START 100> is the single normal start command. It clears stale flags,
-// spawns the middle task, then continues as the top task.
+// spawns ROUTE(200) for the middle task, then continues as the top task.
 
 ROUTE(100, "Start Shuttle")
   RESET(2001)             // clear stop flag from any previous run
@@ -204,7 +216,7 @@ ROUTE(100, "Start Shuttle")
   RESET(2011)
   RESET(2012)
   RESET(2013)
-  START(220)              // spawn middle task (Train 4 / Train 5)
+  START(200)              // spawn middle route, which FOLLOWs SEQ 220
   FOLLOW(101)             // current route task becomes top task (Train 2)
 
 ROUTE(200, "DEBUG: Start Middle Only")
