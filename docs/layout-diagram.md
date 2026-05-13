@@ -1,132 +1,92 @@
 # Layout Diagram
 
-Track topology, sensor placements, and turnout positions for the current
-shuttle layout.
+Current layout for the v3.16.0-STABLE EXRAIL automation.
 
-## Track plan (logical view)
+## Logical Track Plan
 
-```
-                           STATION
-        +-----------------------------------------+
-        |   Track A  (Train 2 / Shinkansen)      |
-        +--------------------+---------------------+
-                             |
-                       [ Turnout 2 ]
-                             |
-        +--------------------+---------------------+
-        |   Track B  (Train 4 / E233)            |
-        +--------------------+---------------------+
-                             |
-                             v
-                   [ Sensor 1001 -- vpin 33 ]   <- "near end"
-                             |
-                             |
-                             |   long shared track
-                             |   (most of the running distance)
-                             |
-                             |
-                   [ Sensor 1002 -- vpin 26 ]   <- "far end"
-                             |
-                             v
-                       (track ends here)
+```text
+                         East / far end
+
+Top track:    -------- Train 2 shuttle ----------------
+                       ^ S1                       ^ S2
+                       | vpin 33                  | vpin 26
+                       | shared beam              | shared beam
+                       v                           v
+Middle track: --T2-----+------------ T1 ----------+---T3----
+Spur:             \--- Train 5 home
+
+                         West / station end
 ```
 
-The shared long track has no return loop. Trains run out and reverse home.
+S1 and S2 are beam-break sensors across both the top and middle tracks. They do
+not tell the script which track or which train crossed the beam.
 
-## Sensor map
+## Sensor Map
 
-| Sensor ID (DCC-EX) | RIR4 detector # | CSB1 vpin | Position | EXRAIL polarity |
+| Label | Sensor ID | CSB1 vpin | Physical position | EXRAIL usage |
 | --- | --- | --- | --- | --- |
-| 1001 | 1 | 33 | Near end of long track (close to station) | `AT(33)` (positive vpin = active high) |
-| 1002 | 2 | 26 | Far end of long track | `AT(26)` |
-| 1003 (reserved) | 3 | 16 | Not yet installed | reserved |
-| 1004 (reserved) | 4 | 17 | Not yet installed | reserved |
+| S1 | 1001 | 33 | West/home-side shared beam | `AT(33)` / `AFTER(33)` |
+| S2 | 1002 | 26 | East/far-side shared beam | `AT(26)` / `AFTER(26)` |
+| Reserved | 1003 | 16 | Not mounted | Future use |
+| Reserved | 1004 | 17 | Not mounted | Future use |
 
-The Arduino sketch was tuned so the GPIO output is **LOW when the detector
-is occupied**. Combined with how DCC-EX `AT()` and JMRI sensor polarity
-interact, the working incantation is `AT(positive_vpin)` (no minus sign).
-The chain has multiple inversions so trust empirical verification over
-derived logic. See [`lessons-learned.md`](lessons-learned.md) for the saga.
+The Arduino/RIR4/level-shifter chain was empirically verified with positive
+vpins in EXRAIL. Do not change to `AT(-33)` or `AT(-26)` unless a physical
+polarity test proves it is necessary.
 
-## Turnout map
+## Turnout Map
 
-| Turnout ID (DCC-EX) | DCC accessory address | Position | State semantics |
+| Label | Address | Startup state | Stable meaning |
 | --- | --- | --- | --- |
-| 1 | 1 | (currently unused) | Reserved for future expansion |
-| 2 | 2 | Station throat | **Thrown** = Train 2's route; **Closed** = Train 4's route |
+| T1 | 1 | Thrown | Double-turnout / double-slip kept open for the parallel tracks |
+| T2 | 2 | Thrown | Thrown for Train 4, closed for Train 5 |
+| T3 | 3 | Thrown | Kept open for the current route |
 
-## Train roster (where they live)
+All turnout polarities are treated as inverted from the first assumptions:
+`THROW(1)`, `THROW(2)`, and `THROW(3)` are the startup-safe states.
 
-| DCC address | Display name | Type | Decoders | Parking position |
+## Train Positions
+
+| Address | Role | Starting/home position |
+| --- | --- | --- |
+| 2 | Top-track shuttle | West side of top track |
+| 4 | Middle main shuttle | West side of middle track |
+| 5 | Spur shuttle alternating with Train 4 | BL spur off T2 |
+
+Unused addresses in the current automation: 1, 6, 7.
+
+## Stable Cycle
+
+```text
+START 100
+  |
+  +-- Middle task spawns and stages
+  |
+  +-- Train 2 makes first solo west-to-east trip
+  |
+  +-- Repeating paired crossings:
+        Train 2 shuttles top track continuously
+        Train 4 goes east and west
+        Train 5 goes east and west
+        Train 4 and Train 5 alternate
+```
+
+Train 2 and the active middle train depart together during paired crossings.
+This is intentional. With shared beams, intentional departure delays caused
+merged sensor events and missed arrivals.
+
+## Motion Tuning
+
+| Train | Cruise | Creep | Creep time | Random dwell |
 | --- | --- | --- | --- | --- |
-| 2 | KATO Shinkansen | Train A (runs first) | EM13 motor + FR11 lights (cars at addr 2) | Track A at station |
-| 4 | KATO E233 | Train B (runs second) | EM13 motor + FR11 lights (cars at addr 4) | Track B at station |
+| Train 2 | 40 | 20 | 8 seconds | 3 to 8 seconds |
+| Train 4 | 40 | 20 | 8 seconds | 3 to 8 seconds |
+| Train 5 | 40 | 20 | 10 seconds | 3 to 8 seconds |
 
-## Behavioural cycle
+## Power Feed
 
-```
-       +------------------------------+
-       |  Trigger: </START 100>       |
-       +-------------+----------------+
-                     v
-       +------------------------------+
-       |  Throw turnout 2             |
-       |  Train 2: FWD(80)            |
-       +-------------+----------------+
-                     v
-       +------------------------------+
-       |  AT(26) -- arrive at far end |
-       |  Train 2: FWD(40), 3s creep  |
-       |  STOP, dwell 10s             |
-       +-------------+----------------+
-                     v
-       +------------------------------+
-       |  Train 2: REV(80)            |
-       |  AT(33) -- back near station |
-       |  Train 2: REV(40), 3s creep  |
-       |  STOP, dwell 10s             |
-       +-------------+----------------+
-                     v
-       +------------------------------+
-       |  Close turnout 2             |
-       |  Train 4: FWD(80)            |
-       |  ... mirror of Train 2 cycle |
-       |  ... ends with SENDLOCO(2,10)|
-       +-------------+----------------+
-                     v
-            (loops indefinitely)
-```
+CSB1 `MAIN` output feeds the Kato Unitrack layout through a Kato Terminal
+Unijoiner. DCC polarity is symmetric, but keep feeder polarity consistent if
+additional feeders are added.
 
-## Power feed
-
-CSB1's `MAIN` track output -> Kato Terminal Unijoiner -> injected once into
-the layout. DCC is a symmetric protocol so feed polarity is not critical, but
-must be consistent across feeders. Per Kato manufacturer guidance one feeder
-suffices for layouts under ~8 feet of total track; add a feeder every 6..8 ft
-for larger layouts.
-
-For Kato #4 turnouts, set the underside switch to **non-power-routing** so the
-diverging route stays energized for DCC.
-
-## Physical positioning notes
-
-- Sensor 1001 should sit just inside the long track from the station (within
-  ~6 in of the turnout exit). Trains reach it at full cruise speed and use it
-  as the slowdown trigger on the way back.
-- Sensor 1002 should sit a fixed distance from the end of the long track --
-  far enough that a `FWD(40)` for 3 s plus the natural deceleration brings the
-  train to rest before the buffer.
-- The detector "fingers" of the Azatrax pairs face each other across the
-  rails. Aim the IR LED and phototransistor at each other through the train
-  silhouette zone.
-
-## Future layout work
-
-- Mount IR pairs for sensors 1003 and 1004 (vpins 16 and 17). The Arduino
-  sketch already polls all four detectors; the level shifter is wired through
-  to the CSB1; only the physical sensor pairs and uncommenting two lines in
-  `dcc-ex/sensor-setup-commands.txt` are needed to bring them online.
-- Possible mid-track passing siding (would need a new turnout, accessory
-  decoder, and at least one new sensor for occupancy).
-- Possible reverse loop (would require an auto-reverser module and additional
-  block detection).
+For Kato #4 turnouts, use the non-power-routing setting for DCC reliability.

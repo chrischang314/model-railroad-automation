@@ -78,10 +78,10 @@ should be re-applied after every CSB1 reflash.
 
 | Command | What it does |
 | --- | --- |
-| `</START 100>` | Spawn the top task (Train 2). Send WITH `</START 200>` to start the full parallel shuttle. |
-| `</START 200>` | Spawn the middle task (Train 4 / Train 5 alternating). Send with `</START 100>`. |
+| `</START 100>` | Start the full stable shuttle. This is the only normal startup command. |
+| `</START 200>` | Diagnostic only: start the middle task by itself. Do not send during normal operation. |
 | `</START 110>` | Stop the shuttle gracefully (sets stop flag; both trains return home, then halt). |
-| `</START 10 2>` | Start sequence 10 on loco 2. |
+| `</START 290>` | Diagnostic only: pulse `mid_ready` vpin 2011 for 1 second to release a barrier stall. |
 | `</PAUSE>` | Pause every running EXRAIL task (cooperative). |
 | `</RESUME>` | Resume after pause. |
 | `</KILL ALL>` | Terminate all running EXRAIL tasks. |
@@ -94,24 +94,27 @@ These are written in the `myAutomation.h` source, not sent over the wire.
 
 | Macro | What it does |
 | --- | --- |
+| `HAL(Bitmap, first, count)` | Declare software vpins so `SET`/`RESET` and `IF`/`AT` share state. Required for flags 2001..2015. |
 | `ROSTER(addr, name, functions)` | Declare a loco for WiThrottle. |
 | `TURNOUTL(id, addr, name)` | Declare a DCC accessory turnout with label. |
 | `ROUTE(id, name)` | Declare a triggerable command sequence. |
-| `SEQUENCE(id)` | Private sub-routine usable from `SENDLOCO`. |
-| `SET(vpin)` | Set virtual sensor `vpin` to active (creates the vpin if needed). |
+| `SEQUENCE(id)` | Private sub-routine reached by `FOLLOW`, `START` wrappers, or other EXRAIL flow. |
+| `START(id)` | Spawn a route as a separate EXRAIL task. Current script uses `START(200)`. |
+| `FOLLOW(id)` | Continue execution in another sequence without spawning a new task. |
+| `SETLOCO(addr)` | Set the current loco for later motion/function commands. |
+| `SET(vpin)` | Set declared software vpin active. Use bitmap-declared vpins for inter-task flags. |
 | `RESET(vpin)` | Set virtual sensor `vpin` to inactive. |
 | `AUTOSTART` | Run the following block automatically at boot. |
 | `POWERON` | Turn on track power. |
 | `THROW(n)` / `CLOSE(n)` | Throw or close turnout `n`. |
 | `FWD(speed)` / `REV(speed)` / `STOP` | Loco motion control. |
+| `AFTER(vpin)` | Wait until the vpin has triggered and cleared; used to consume departure beams. |
 | `AT(vpin)` | Block until vpin reads active. **Vpin, not sensor ID.** |
 | `AT(-vpin)` | Block until vpin reads inactive (inverted polarity). |
-| `IF(vpin)` / `ENDIF` | Conditional branching on a vpin state. |
 | `DELAY(ms)` | Sleep `ms` milliseconds. |
 | `DELAYRANDOM(min, max)` | Sleep a random duration in `[min, max]` ms. |
 | `IF(vpin)` / `ENDIF` | Run the enclosed block only if vpin is active. |
 | `IFNOT(vpin)` / `ENDIF` | Inverse: run only if vpin is inactive. |
-| `SENDLOCO(addr, sequence_id)` | Dispatch loco `addr` to run sequence `id`. |
 | `FON(fn)` / `FOFF(fn)` | Turn function `fn` on/off on the current loco. |
 | `DONE` | End of a `ROUTE`/`SEQUENCE`/`AUTOSTART` block (required). |
 
@@ -124,6 +127,10 @@ These are written in the `myAutomation.h` source, not sent over the wire.
 | --- | --- |
 | `SENSOR(id, vpin, pullup)` | Doesn't exist in CommandStation-EX 5.6.0. Configure sensors at runtime via `<S>` instead. |
 | `AT(sensor_id)` | `AT()` takes a vpin, not a sensor ID. Wrong vpin = silent timeout. |
+| `SENDLOCO` for this parallel shuttle | It was unreliable for spawning the second task in this layout. |
+| Multiple `AUTOSTART` workers | They did not create independent tasks on the tested firmware. |
+| Random departure delays | With shared beam sensors, departure offsets can merge two beam events into one. |
+| Partner-departure `AFTER(...)` waits | If the partner already cleared the beam, `AFTER()` can consume this train's real arrival. |
 | Plug 5 V Arduino shields directly onto CSB1 GPIO | CSB1 is 3.3 V; risks ESP32 damage. WiFi died once during testing. Use the BSS138 level shifter. |
 | `AT(33)` and `AT(-33)` interchangeably | The chosen polarity must match the Arduino sketch's drive logic. Currently `AT(positive_vpin)` is correct because the sketch drives LOW when occupied. |
 

@@ -11,6 +11,46 @@ bugfix or doc update).
 
 - (nothing pending; see open GitHub issues for tracked work)
 
+## [3.16.0] - 2026-05-13
+
+### Stable
+
+- Promoted the parallel three-train EXRAIL automation to the latest stable
+  version after physical-layout confirmation.
+- `dcc-ex/myAutomation.h` is now `v3.16.0-STABLE`.
+
+### Added
+
+- Current handoff and troubleshooting documentation for future LLM sessions in
+  `docs/handoff-document.md`.
+- Updated lessons learned in `docs/lessons-learned.md`, including EXRAIL
+  pitfalls, shared beam-break handling, task-spawn lessons, and corrected
+  misconceptions from earlier AI-generated attempts.
+- Updated layout notes for Train 2, Train 4, Train 5, T1/T2/T3, and shared
+  S1/S2 sensors.
+
+### Confirmed working
+
+- Single-command startup with `</START 100>`.
+- Train 2 shuttling on the top track while Train 4 and Train 5 alternate on the
+  middle/spur route.
+- Simultaneous paired departures across the shared-beam layout.
+- S1 and S2 software clear handshakes using vpins `2014` and `2015`.
+- Graceful stop via `</START 110>`.
+- Stable speed tuning: cruise 40, creep 20, Train 2/4 creep 8 seconds,
+  Train 5 creep 10 seconds, random dwell 3 to 8 seconds.
+
+### Lessons captured
+
+- `START(200)` plus `FOLLOW(101)` is the reliable two-task startup pattern for
+  this CSB1 setup.
+- `SENDLOCO`, multiple `AUTOSTART` worker blocks, direct sequence starts, blind
+  delays, staggered departures, and partner-departure `AFTER(...)` waits all
+  caused stalls, false stops, or overruns during testing.
+- `AT()` must use vpins (`33`, `26`) rather than sensor IDs (`1001`, `1002`).
+- Physical sensors still need runtime `<S ...>` declarations after reflashing;
+  software flags are provided by `HAL(Bitmap, 2000, 20)`.
+
 ## [1.1.0] - 2026-05-07
 
 ### Added
@@ -126,6 +166,7 @@ project files:
 - No graceful "stop after current cycle" mechanism; only immediate stop.
 - Speeds above 80 cause overshoot at sensor 1002.
 
-[Unreleased]: https://github.com/chrischang314/model-railroad-automation/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/chrischang314/model-railroad-automation/compare/v3.16.0...HEAD
+[3.16.0]: https://github.com/chrischang314/model-railroad-automation/compare/v1.1.0...v3.16.0
 [1.1.0]: https://github.com/chrischang314/model-railroad-automation/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/chrischang314/model-railroad-automation/releases/tag/v1.0.0

@@ -31,7 +31,7 @@ Anything beyond CV29 is decoder-specific. Refer to the manufacturer's manual.
 | 1   | 2     | Short address. |
 | 3   | TBD   | Acceleration rate. Lowering this gives crisper stops in the shuttle automation. Recommended starting point: 5..10. |
 | 4   | TBD   | Deceleration rate. Same recommendation. |
-| 5   | TBD   | Tune Vmax so cruise speed `FWD(80)` matches the prototype's "feels right" speed. |
+| 5   | TBD   | Tune Vmax so cruise speed `FWD(40)` matches the prototype's "feels right" speed. |
 | 6   | TBD   | Vmid. Adjust so the speed curve is roughly linear. |
 | 29  | 6     | Standard: forward direction normal, 28-step mode, short address. Set bit 5 (=32) to enable long-address mode if migrating to a 4-digit address. |
 
@@ -190,7 +190,7 @@ disconnected.
 
 - **Lower CV3/CV4 (acceleration/deceleration) for automation.** High momentum
   causes long coasts and sloppy sensor stops. 5..10 gives predictable behavior.
-- **Set both locos to the same CV5 max.** Otherwise the same `FWD(80)` will
+- **Set active locos to the same CV5 max.** Otherwise the same `FWD(40)` will
   give noticeably different speeds, and you'll spend forever rebalancing the
   shuttle timing.
 - **Don't tune CVs while the layout is running automation.** The script will

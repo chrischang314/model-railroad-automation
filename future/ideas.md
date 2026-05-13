@@ -23,28 +23,16 @@ be physically installed at chosen track positions. Then:
 
 The Arduino sketch already polls all four detectors -- no sketch change needed.
 
-### Add headlight automation
+### Refine directional lighting
 
-Insert `FON(0)` at the start of each `SEQUENCE` and `FOFF(0)` at the end.
-Trains will run with their headlights on during motion and dark while parked.
-Even more prototypical: keep `FOFF` for the trailing direction so headlights
-only point forward.
-
-### Graceful "stop after current cycle"
-
-Today only `</KILL ALL>` exists, which interrupts mid-cycle. Improve by:
-
-1. Define a virtual flag sensor (e.g. 2001 on a dummy vpin no one drives).
-2. At the top of each `SEQUENCE`, add `IF(2001) ... ENDIF` that breaks out
-   without dispatching the next train.
-3. Add a "Stop Shuttle Gracefully" route that sets the flag.
-
-This pattern is also useful for "pause for visitor walk-through" without
-dropping the trains mid-track.
+Basic headlight automation already exists in `dcc-ex/myAutomation.h`. A future
+refinement would distinguish leading and trailing lights where the decoder
+function map supports that, so only the forward-facing end is lit during each
+leg.
 
 ### Tune decoder speed tables
 
-Set CV5 (Vmax) on both locos so `FWD(80)` looks identical in real life. Then
+Set CV5 (Vmax) on both locos so `FWD(40)` looks identical in real life. Then
 tune CV6 (Vmid) so the speed curve is roughly linear from creep to cruise.
 DecoderPro makes this easy. See
 [`../reference/decoder-cv-reference.md`](../reference/decoder-cv-reference.md)
@@ -134,8 +122,8 @@ turntable. Excellent for a roundhouse-themed expansion.
 
 ## Custom EXRAIL automations to consider
 
-- **Random departure delays:** `DELAYRANDOM(min, max)` in place of
-  `DELAY(2000)` for less mechanical-feeling shuttle timing.
+- **Random station dwell only:** `DELAYRANDOM(min, max)` is safe at station
+  stops. Do not randomize paired departures while S1/S2 are shared beams.
 - **Time-of-day triggers:** different shuttle patterns at different fast-clock
   times (e.g. faster in "rush hour", slower at "night").
 - **Conditional routing:** `IF(sensor)` -- "if a third sensor detects

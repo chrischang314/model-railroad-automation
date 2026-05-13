@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.16.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.16.0-STABLE)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -159,6 +159,9 @@
 //   v3.16 (this release): add the mirrored software handshake for S2. The
 //   middle task SETs vpin 2015 after Train 4/5 has completed AFTER(26).
 //   Train 2 waits for 2015 before arming AT(26).
+//
+//   Bench result: confirmed working on the physical layout. Promote v3.16 as
+//   the current stable script.
 //
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.

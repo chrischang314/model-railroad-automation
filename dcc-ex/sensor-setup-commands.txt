@@ -29,16 +29,18 @@
 #<S 1003 16 0>
 #<S 1004 17 0>
 
-# Vpins 2000-2013 are virtual flag pins used by the v3.1 parallel shuttle in
+# Vpins 2000-2015 are virtual flag pins used by the v3.16 parallel shuttle in
 # myAutomation.h:
 #   2001  stop flag (graceful stop)
-#   2010  top_ready (barrier)
+#   2010  top_ready / release (barrier)
 #   2011  mid_ready (barrier)
 #   2012  top_parked
 #   2013  mid_parked
+#   2014  mid_s1_clear (middle train has consumed and cleared S1 departure)
+#   2015  mid_s2_clear (middle train has consumed and cleared S2 departure)
 #
 # These do NOT need any runtime <S> declaration. They are materialized at
-# firmware boot by the `HAL(Bitmap, 2000, 14)` line at the top of
+# firmware boot by the `HAL(Bitmap, 2000, 20)` line at the top of
 # myAutomation.h, which is the documented DCC-EX mechanism for software-only
 # inter-process flags (see https://dcc-ex.com/exrail/cookbooks/flags-and-latches/flags.html).
 #
