@@ -1,4 +1,4 @@
-// myAutomation.h - Multi-track shuttle (v2.0.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.1.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -7,83 +7,132 @@
 //                          | S1 (vpin 33)                   | S2 (vpin 26)
 //                          | beam crosses BOTH tracks       | beam crosses BOTH tracks
 //                          v                                v
-//   Middle track: --T2-----+--------- T1 -----------+---T3-----  (Trains 4 / 5 alternate)
-//   Spur (BL):       \--- Train 5 home (off T2)
-//   Spur (BR):                                      ---/   unused
+//   Middle track: --T2_t---+--------- T1_t -----------+---T3_t-----
+//   Spur (BL):       \--- Train 5 home (off T2_t)
 //
-// CRITICAL SENSOR CONSTRAINT
-//   S1 and S2 are beam-break sensors whose beams pass across BOTH the top
-//   and middle tracks. The sensor cannot tell which track tripped it.
+// ============================================================================
+// v3.1 CHANGES (graceful stop, the right way)
+// ============================================================================
 //
-//   This script handles that with TIME-SLICING: only ONE train is in motion
-//   at any time. While Train X runs, all other trains are parked clear of
-//   the sensor beams, so any S1/S2 trigger unambiguously belongs to X.
+// Adds </START 101> graceful stop. Both trains complete a coordinated final
+// half-cycle and park at their HOME positions (Train 2 at top-west,
+// Train 4 at middle-west, Train 5 back on the BL spur), with headlights off.
+// To restart: </START 100>.
 //
-//   The cycle is a fixed deterministic chain:
-//     T2 -> T4 -> T2 -> T5 -> repeat
-//   Trains 4 and 5 alternate on the middle track; Train 2 runs on top
-//   between every middle-track lap.
+// THE EXRAIL FLAG BUG THIS RELEASE FINALLY FIXES
+//   v1.1.0 tried a stop flag with SET(2001) / IF(2001) and it never worked --
+//   the IF check always saw 0. v3.0 used SET(2010) / AT(2011) for the barrier
+//   and worked on the bench, but we never verified the IF path.
 //
-// PARKING POSITIONS (must be CLEAR of sensor beams when stopped):
-//   Train 2  - west of S1 on the TOP track     (home position)
-//              east of S2 on the TOP track     (far end)
-//   Train 4  - west of S1 on the MIDDLE track  (home position)
-//              east of S2 on the MIDDLE track  (far end)
-//   Train 5  - on the bottom-left spur, off T2 (home position; off-beam)
-//              east of S2 on the MIDDLE track  (far end)
+//   Per the DCC-EX docs (cookbooks/flags-and-latches/flags.html and
+//   reference/software/command-summary-consolidated.html):
 //
-//   If a train parks even partially on a sensor, the next train's first
-//   AT(...) call will fire immediately and the cycle will desync. Tune
-//   creep DELAY per train so each train fully clears the beam.
+//     * SET/RESET drive OUTPUT state.
+//     * IF/IFNOT read SENSOR/INPUT state.
+//     * AT/AFTER also operate on sensor state.
 //
-// TURNOUT POLICY
+//   On an undeclared vpin these are DIFFERENT state tables -- which is why
+//   v1.1.0 silently misbehaved. A vpin only becomes a "real" software flag
+//   visible to both sides when declared with:
 //
-//   This layout's accessory decoders use INVERTED polarity vs. the typical
-//   DCC convention. Across all three turnouts:
-//     THROWN  = straight-through / main route
-//     CLOSED  = diverging route
+//     HAL(Bitmap, firstpin, npins)
 //
-//   T1 (addr 1, double-slip) - kept THROWN at all times: top and middle
-//                              pass straight through, no crossover.
-//                              ("Open" position per the user's diagram.)
-//   T2 (addr 2, left-hand)   - THROWN for Train 4's lap (middle main clear).
-//                              CLOSED for Train 5's lap (spur connected to
-//                              middle main). Default at boot is THROWN.
-//   T3 (addr 3, right-hand)  - kept THROWN at all times (no diversion to
-//                              the unused bottom-right spur).
+//   Bitmap pins are explicitly documented as "software flags... used as
+//   INPUT and OUTPUT... flags between EXRAIL processes." We declare a block
+//   of 14 vpins (2000..2013) up front and use them with confidence.
 //
-// CONTROL ROUTES
-//   </START 100>          start the shuttle (T2 first, then T4, then T2, then T5, ...)
-//   </KILL ALL>           stop everything (graceful stop is TODO; see notes below)
-//   <!>                   emergency loco e-stop
+// ============================================================================
+// ARCHITECTURE (parallel two-task shuttle, unchanged from v3.0)
+// ============================================================================
+//
+//   - Top task:    Train 2 forever on the top track.
+//   - Middle task: alternates Train 4 / Train 5 on the middle track.
+//
+//   Trains run OPPOSITE directions and pass in the middle. Direction phase
+//   is held by a 4-phase rendezvous barrier between every leg (SET own,
+//   AT partner, RESET own, AT(-) partner). Whoever finishes its random
+//   dwell first waits; both depart together.
+//
+// SENSOR AMBIGUITY HANDLING
+//   S1/S2 beams cross both tracks. Two ambiguities:
+//     1. DEPARTURE: each leg begins with DELAY(8000) before AT() so the
+//        partner's departure transit clears the shared beam first.
+//     2. ARRIVAL: trains always run opposite directions, so arrival sensors
+//        differ (top east + mid west -> top arrives at S2, mid at S1).
+//
+// STARTUP STAGGER
+//   All three trains start at WEST. Train 2 runs ONE solo east leg (SEQ 101)
+//   while the middle task spawns and blocks at the first barrier. From the
+//   next leg onward they cross every time.
+//
+// ============================================================================
+// GRACEFUL STOP DESIGN (the deadlock-safe part)
+// ============================================================================
+//
+//   </START 101> SETs the stop flag (vpin 2001). Each task checks 2001
+//   ONLY at its HOME arrival (Train 2: end of SEQ 102; middle: end of SEQ 202
+//   for T4 or 204 for T5). At HOME, IF(2001) -> FOLLOW(parking).
+//
+//   This is asymmetric: at any moment one task is "home" and the other is
+//   "away." Whichever parks first SETs its parked flag (2012 for top,
+//   2013 for mid). The OTHER task still owes one return leg.
+//
+//   The remaining train would normally deadlock on its next barrier because
+//   its partner is gone. Two mechanisms together prevent the deadlock:
+//
+//     a) BARRIER BYPASS. Each barrier is wrapped in IFNOT(partner_parked) ...
+//        ENDIF. If the partner is parked, skip the barrier and run solo.
+//     b) PARKING BARRIER FINALIZE. The parking sequence SETs its ready flag
+//        and waits 500 ms before RESET. This unblocks a partner that was
+//        ALREADY waiting in the current barrier when we parked (the small
+//        race window between the partner's IFNOT check and its SET()).
+//
+//   Either (a) or (b) saves the solo train depending on its timing relative
+//   to when parking happens. Both together cover all races.
+//
+//   Restart: </START 100> RESETs every flag (stop, barrier, parked) so a
+//   clean run can begin again.
+//
+// ============================================================================
+// VIRTUAL VPIN ALLOCATION (HAL-declared as Bitmap; SET/RESET/IF/IFNOT/AT all
+// share state)
+// ============================================================================
+//
+//   2001 - stop flag         SET by ROUTE(101), RESET by ROUTE(100)
+//   2010 - top_ready         barrier flag raised by top task
+//   2011 - mid_ready         barrier flag raised by middle task
+//   2012 - top_parked        latched by SEQ 150 once Train 2 has parked
+//   2013 - mid_parked        latched by SEQ 250 once middle train has parked
+//
+// ============================================================================
+// TURNOUT POLICY (decoders inverted: THROWN = main, CLOSED = diverging)
+// ============================================================================
+//   T1_t (addr 1, double-slip)  THROWN always. Top/middle stay parallel.
+//   T2_t (addr 2, left-hand)    THROWN for T4 lap, CLOSED for T5 lap.
+//   T3_t (addr 3, right-hand)   THROWN always.
+//
+// ============================================================================
+// CONTROL
+// ============================================================================
+//   Pre-start: Train 2 at top-west home, Train 4 at middle-west home,
+//   Train 5 on the BL spur.
+//
+//     </START 100>   start (or restart) parallel shuttle
+//     </START 101>   graceful stop (both trains return home, then halt)
+//     </KILL ALL>    hard stop -- terminates every EXRAIL task immediately
+//     <!>            emergency loco e-stop
 //
 // SENSOR DECLARATIONS (re-send after every flash)
-//   <S 1001 33 0>         S1 (home end of both tracks)
-//   <S 1002 26 0>         S2 (far end of both tracks)
+//   <S 1001 33 0>  S1 (home end, both tracks)
+//   <S 1002 26 0>  S2 (far end, both tracks)
 //
-// EXRAIL 5.6.0 NOTES (learned the hard way on this layout)
-//   1. Nested IF (`IF(...) IF(...) ... ENDIF ENDIF`) parses but the inner
-//      block does not fire reliably. AVOID.
-//   2. SET(vpin) / IF(vpin) on a vpin with no `<S>` declaration appears to
-//      use different state tables -- the IF check never sees the SET.
-//      The previous DRAFT used SET(2001) / IF(2001) for a graceful-stop
-//      flag and SET(2002) / IF(2002) for a middle-train alternator;
-//      neither worked end-to-end on this firmware.
-//   3. Consequence: this script uses NO virtual flags and NO conditional
-//      dispatch.
-//   4. SENDLOCO(loco, route) starts a NEW PARALLEL TASK. In bench testing,
-//      the first handoff (Train 2 -> Train 4) worked, but the next handoff
-//      (Train 4 -> Train 2) did not restart Train 2 reliably. This version
-//      avoids SENDLOCO entirely.
-//   5. The cycle is now a single deterministic task using FOLLOW(id) as the
-//      baton pass. Each sequence explicitly selects its own loco with
-//      SETLOCO(...) at the top, then FOLLOWs the next sequence instead of
-//      DONE/SENDLOCO.
-//   6. Train 2 has TWO sequences (10 and 11) with identical bodies but
-//      different terminal FOLLOW targets, which is how the middle-train
-//      alternation is encoded.
-//   7. Graceful stop is currently a TODO (see open issue). For now, stop
-//      with </KILL ALL>.
+// The 2000-series vpins do NOT need <S> declarations -- they are created by
+// the HAL(Bitmap,...) line below.
+
+// ============================================================================
+// HAL: declare bitmap vpins so SET/RESET/IF/IFNOT/AT share state
+// ============================================================================
+HAL(Bitmap, 2000, 14)
 
 // ============================================================================
 // Roster
@@ -100,169 +149,210 @@ TURNOUTL(2, 2, "T2 spur entry")
 TURNOUTL(3, 3, "T3 unused spur")
 
 // ============================================================================
-// Boot setup: power on, place turnouts in default positions
+// Boot setup: power on, set turnouts to defaults, clear all flag vpins
 // ============================================================================
 AUTOSTART
 POWERON
-THROW(1)              // T1 -> straight-through ("open" / no crossover)
-THROW(2)              // T2 -> middle main clear (Train 4's default)
-THROW(3)              // T3 -> straight-through (unused spur disconnected)
+THROW(1)
+THROW(2)
+THROW(3)
+RESET(2001)
+RESET(2010)
+RESET(2011)
+RESET(2012)
+RESET(2013)
 DONE
 
 // ============================================================================
 // Trigger routes
 // ============================================================================
-ROUTE(100, "Start Shuttle")
-  FOLLOW(10)          // start the single-task chain at Train 2 -> Train 4
+//
+// ROUTE(100) clears every flag before spawning the two tasks, so a restart
+// after a graceful stop begins from a clean state. ROUTE(101) just SETs the
+// stop flag; the running tasks observe it at their next home-arrival check.
+
+ROUTE(100, "Start Parallel Shuttle")
+  RESET(2001)
+  RESET(2010)
+  RESET(2011)
+  RESET(2012)
+  RESET(2013)
+  SENDLOCO(4, 200)        // spawn middle task (one-shot startup spawn)
+  FOLLOW(101)             // continue as top task (Train 2 first east leg)
+
+ROUTE(101, "Stop Shuttle Gracefully")
+  SET(2001)
 
 // ============================================================================
-// Train 2 - top track lap (TWO sequences, identical body)
+// TOP TASK: Train 2 on the top track, forever
 // ============================================================================
 //
-// SEQUENCE(10) and SEQUENCE(11) have IDENTICAL bodies. They differ only in
-// the final FOLLOW target:
-//   SEQUENCE(10) -> FOLLOW(20)   (Train 4 next)
-//   SEQUENCE(11) -> FOLLOW(30)   (Train 5 next)
+// Direction convention: FWD = east, REV = west. Train 2 home is WEST.
 //
-// IF YOU TUNE TRAIN 2'S TIMING, EDIT BOTH SEQUENCES TO MATCH.
-//
-// Direction convention:
-//   FWD = east  (Train 2 starts at the WEST end facing east)
-//   REV = west
-//
-// Sensor reads:
-//   East-bound: S1 fires as transit (no AT waiting on it), S2 is the stop.
-//   West-bound: S2 fires as transit, S1 is the home stop.
-//
-// Tuning rationale:
-//   FWD/REV(40)   Cruise speed. Halved from v1.1.0's 80 for slower, more
-//                 deliberate operation on this layout.
-//   FWD/REV(20)   Creep speed for the final slowdown before STOP.
-//   DELAY(8000)   Creep duration. Long enough that the train clears the
-//                 sensor beam before stopping. Critical for time-slicing.
-//                 Train 5 uses DELAY(10000) because its spur entry/exit
-//                 needs a longer slowdown window.
-//   DELAYRANDOM(3000, 8000)
-//                 Random station dwell.
+// 102 (west leg, home arrival)  -> stop check here
+// 103 (east leg, away arrival)  -> no stop check; always FOLLOW(102)
+// 150 (parking)                 -> entered from 102 when stop flag set
 
-SEQUENCE(10)          // === Train 2 lap; dispatches Train 4 ===
+SEQUENCE(101)               // === first east leg (solo; mid is at first barrier) ===
   SETLOCO(2)
   FON(0)
-
   FWD(40)
-  AT(26)
+  AT(26)                    // S2 arrival -- middle hasn't moved yet, no ambiguity
   FWD(20)
   DELAY(8000)
   STOP
-
   DELAYRANDOM(3000, 8000)
+  FOLLOW(102)
 
+SEQUENCE(102)               // === west leg (Train 2 returning home; mid going east) ===
+  SETLOCO(2)
+  IFNOT(2013)               // skip barrier if mid has parked
+    SET(2010)
+    AT(2011)
+    RESET(2010)
+    AT(-2011)
+  ENDIF
   REV(40)
-  AT(33)
+  DELAY(8000)               // mask middle's east-departure transit across S1
+  AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
   STOP
-
-  FOFF(0)
-
   DELAYRANDOM(3000, 8000)
+  IF(2001)                  // stop flag set -> park at home (top is at west now)
+    FOLLOW(150)
+  ELSE
+    FOLLOW(103)
+  ENDIF
 
-  FOLLOW(20)          // hand off to Train 4 in the same EXRAIL task
-
-SEQUENCE(11)          // === Train 2 lap; dispatches Train 5 (body identical to SEQ 10) ===
+SEQUENCE(103)               // === east leg (Train 2 going away; mid going west) ===
   SETLOCO(2)
-  FON(0)
-
+  IFNOT(2013)               // skip barrier if mid has parked
+    SET(2010)
+    AT(2011)
+    RESET(2010)
+    AT(-2011)
+  ENDIF
   FWD(40)
-  AT(26)
+  DELAY(8000)               // mask middle's west-departure transit across S2
+  AT(26)                    // S2 arrival
   FWD(20)
   DELAY(8000)
   STOP
-
   DELAYRANDOM(3000, 8000)
+  FOLLOW(102)               // never park here (top is at east, not home)
 
-  REV(40)
-  AT(33)
-  REV(20)
-  DELAY(8000)
-  STOP
-
+SEQUENCE(150)               // === top parking: lights off, finalize partner's barrier ===
+  SETLOCO(2)
   FOFF(0)
-
-  DELAYRANDOM(3000, 8000)
-
-  FOLLOW(30)          // hand off to Train 5 in the same EXRAIL task
+  SET(2012)                 // tell mid: top is parked, skip future barriers
+  SET(2010)                 // unblock any partner currently in AT(2010)
+  DELAY(500)
+  RESET(2010)
+  // task ends (no FOLLOW)
 
 // ============================================================================
-// Train 4 - middle track lap (no spur involvement)
+// MIDDLE TASK: alternates Train 4 lap and Train 5 lap, forever
 // ============================================================================
 //
-// Train 4 starts at the WEST end of the middle track, facing EAST.
-// Requires T2 THROWN (middle main clear) and T3 THROWN (no diversion).
-// Both are the default at boot.
+// 200 -> 201 -> 202 -> 203 -> 204 -> 201 -> ...
+// 201 = T4 east leg (away), 202 = T4 west leg (home) -> stop check here
+// 203 = T5 east leg (away), 204 = T5 west leg (home) -> stop check here
+// 250 = mid parking (entered from 202 or 204 when stop flag set)
 
-SEQUENCE(20)
+SEQUENCE(200)               // === middle-task entry: turnout setup, headlights ===
   SETLOCO(4)
-  THROW(2)            // belt-and-suspenders: ensure T2 didn't drift
-  DELAY(2000)         // settle in case the turnout actually moved
+  THROW(2)                  // T2_t thrown -- middle main clear for T4
+  DELAY(2000)
   FON(0)
+  FOLLOW(201)
 
-  FWD(40)             // depart west home, cruise east on middle
-  AT(26)              // wait S2
+SEQUENCE(201)               // === T4 east leg (Train 2 going west) ===
+  SETLOCO(4)
+  THROW(2)                  // re-assert after a T5 -> T4 transition
+  IFNOT(2012)               // skip barrier if top has parked
+    SET(2011)
+    AT(2010)
+    RESET(2011)
+    AT(-2010)
+  ENDIF
+  FWD(40)
+  DELAY(8000)               // mask Train 2's west-departure transit across S2
+  AT(26)                    // S2 arrival
   FWD(20)
   DELAY(8000)
   STOP
-
   DELAYRANDOM(3000, 8000)
+  FOLLOW(202)               // never park here (mid is at east, not home)
 
+SEQUENCE(202)               // === T4 west leg (Train 2 going east) ===
+  SETLOCO(4)
+  IFNOT(2012)
+    SET(2011)
+    AT(2010)
+    RESET(2011)
+    AT(-2010)
+  ENDIF
   REV(40)
-  AT(33)              // wait S1
+  DELAY(8000)               // mask Train 2's east-departure transit across S1
+  AT(33)                    // S1 arrival
   REV(20)
   DELAY(8000)
   STOP
-
-  FOFF(0)
-
   DELAYRANDOM(3000, 8000)
+  IF(2001)                  // stop flag set -> park at home (T4 is at west now)
+    FOLLOW(250)
+  ELSE
+    FOLLOW(203)
+  ENDIF
 
-  FOLLOW(11)          // hand back to Train 2; SEQ 11 will dispatch Train 5 next
-
-// ============================================================================
-// Train 5 - middle track lap with spur entry/exit
-// ============================================================================
-//
-// Train 5 starts on the bottom-left spur, facing EAST. To run a lap:
-//   1. CLOSE T2 so the spur connects to the middle main.
-//   2. FWD east: Train 5 leaves spur, joins middle track, runs to far end.
-//   3. After the dwell, REV west.
-//   4. T2 stays closed -- when Train 5 reaches T2 going west, it is
-//      diverted onto the spur and stops at home.
-//   5. Throw T2 so the middle main is clear for the next Train 4 lap.
-
-SEQUENCE(30)
+SEQUENCE(203)               // === T5 east leg: leaves spur, runs to east end ===
   SETLOCO(5)
-  CLOSE(2)            // T2 -> spur position (so T5 can leave the spur)
-  DELAY(2000)         // turnout settle
+  CLOSE(2)                  // T2_t -> spur position
+  DELAY(2000)
   FON(0)
-
-  FWD(40)             // depart spur, accelerate east on middle
-  AT(26)              // wait S2
+  IFNOT(2012)
+    SET(2011)
+    AT(2010)
+    RESET(2011)
+    AT(-2010)
+  ENDIF
+  FWD(40)
+  DELAY(8000)
+  AT(26)                    // S2 arrival
   FWD(20)
-  DELAY(10000)        // Train 5 needs more slowdown time than T2/T4
+  DELAY(10000)              // longer creep -- spur exit transition
   STOP
-
   DELAYRANDOM(3000, 8000)
+  FOLLOW(204)               // never park here (T5 is at east, not home)
 
-  REV(40)             // depart east, head west
-  AT(33)              // wait S1 (still on middle main; T2 ahead is closed)
-  REV(20)             // creep; T2 will divert Train 5 onto the spur
-  DELAY(10000)        // longer slowdown for reliable spur entry
+SEQUENCE(204)               // === T5 west leg: returns to spur via still-CLOSED T2_t ===
+  SETLOCO(5)
+  IFNOT(2012)
+    SET(2011)
+    AT(2010)
+    RESET(2011)
+    AT(-2010)
+  ENDIF
+  REV(40)
+  DELAY(8000)
+  AT(33)                    // S1 arrival
+  REV(20)
+  DELAY(10000)              // longer creep -- spur entry transition
   STOP
-
   FOFF(0)
-
-  THROW(2)            // T2 back to thrown (middle main clear for next T4)
-
+  THROW(2)                  // restore main clear for the next T4 lap
   DELAYRANDOM(3000, 8000)
+  IF(2001)                  // stop flag set -> park (T5 is on spur now)
+    FOLLOW(250)
+  ELSE
+    FOLLOW(201)
+  ENDIF
 
-  FOLLOW(10)          // hand back to Train 2; SEQ 10 will dispatch Train 4 next
+SEQUENCE(250)               // === mid parking: lights off, finalize partner's barrier ===
+  FOFF(0)                   // T4 still on if parking from 202; T5 already off from 204
+  SET(2013)                 // tell top: mid is parked, skip future barriers
+  SET(2011)                 // unblock any partner currently in AT(2011)
+  DELAY(500)
+  RESET(2011)
+  // task ends (no FOLLOW)

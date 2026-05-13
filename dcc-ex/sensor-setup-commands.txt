@@ -29,10 +29,24 @@
 #<S 1003 16 0>
 #<S 1004 17 0>
 
-# Vpin 2001 is a virtual run-flag used by the v1.1.0 graceful-stop logic in
-# myAutomation.h. It does NOT need to be declared via <S>; SET(2001) and
-# RESET(2001) inside EXRAIL create the vpin on demand. Listed here only so
-# nobody accidentally re-uses the number.
+# Vpins 2000-2013 are virtual flag pins used by the v3.1 parallel shuttle in
+# myAutomation.h:
+#   2001  stop flag (graceful stop)
+#   2010  top_ready (barrier)
+#   2011  mid_ready (barrier)
+#   2012  top_parked
+#   2013  mid_parked
+#
+# These do NOT need any runtime <S> declaration. They are materialized at
+# firmware boot by the `HAL(Bitmap, 2000, 14)` line at the top of
+# myAutomation.h, which is the documented DCC-EX mechanism for software-only
+# inter-process flags (see https://dcc-ex.com/exrail/cookbooks/flags-and-latches/flags.html).
+#
+# Background: a previous attempt (v1.1.0) used SET(2001)/IF(2001) without
+# any HAL declaration and the IF check never saw the SET. Per the DCC-EX
+# command summary, SET/RESET drive OUTPUT state while IF/IFNOT and AT read
+# SENSOR/INPUT state -- different state tables unless the vpin is declared
+# as a Bitmap pin. HAL(Bitmap,...) reconciles the two.
 
 # Verify configuration with:
 #   <S>           list all configured sensors
