@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.3.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.4.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -11,11 +11,13 @@
 //   Spur (BL):       \--- Train 5 home (off T2_t)
 //
 // ============================================================================
-// v3.3 CHANGES (the spawn mechanism that actually works)
+// v3.4 CHANGES (single-command startup for both parallel tasks)
 // ============================================================================
 //
-// SYMPTOM in v3.1 and v3.2: Train 2 completes its first east leg, then stalls
-// at SEQ 102's AT(2011). The middle task is never running.
+// SYMPTOM in v3.3: </START 100> makes Train 2 run left-to-right, then the
+// program stalls at SEQ 102's AT(2011). Root cause: v3.3 required the user to
+// send BOTH </START 100> and </START 200>; </START 100> only spawned the top
+// task, so the middle task never SET(2011).
 //
 // HISTORY OF SPAWN ATTEMPTS:
 //   v3.1: ROUTE(100) used SENDLOCO(4, 200) to spawn the middle task.
@@ -29,16 +31,23 @@
 //         the first task as straight-line code, so they "hijack" the boot
 //         task instead of spawning new ones. Net effect: only one task runs.
 //
-//   v3.3 (this release): drop multi-AUTOSTART and SENDLOCO entirely. Use the
+//   v3.3: drop multi-AUTOSTART and SENDLOCO entirely. Use the
 //   one spawn mechanism Codex's working v2.0 proved out: each </START N>
-//   command spawns a new parallel EXRAIL task. We define TWO trigger routes
-//   and the user invokes BOTH to start the shuttle:
+//   command spawns a new parallel EXRAIL task. This worked only if the user
+//   manually invoked TWO trigger routes:
 //
 //       </START 100>     spawn the top task    (Train 2 on the top track)
 //       </START 200>     spawn the middle task (Train 4 / Train 5 alternating)
 //
-//   Order doesn't matter -- Train 2's first east leg is solo and the middle
-//   task blocks at its first barrier until Train 2 arrives east.
+//   v3.4 (this release): make </START 100> the single normal start command.
+//   ROUTE(100) uses the documented EXRAIL START(id) macro to spawn BOTH
+//   sequence tasks:
+//
+//       START(101)       top task
+//       START(220)       middle task
+//
+//   Route 200 is retained as a diagnostic "middle-only" starter, but should
+//   not be used for normal operation.
 //
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
@@ -126,15 +135,14 @@
 //   Pre-start: Train 2 at top-west home, Train 4 at middle-west home,
 //   Train 5 on the BL spur.
 //
-//     </START 100>   spawn top task    (Train 2)
-//     </START 200>   spawn middle task (Train 4 / Train 5 alternating)
+//     </START 100>   start full shuttle: spawn top + middle tasks
+//     </START 200>   diagnostic only: spawn middle task by itself
 //     </START 110>   graceful stop (both trains return home, then halt)
 //     </KILL ALL>    hard stop -- terminates every EXRAIL task immediately
 //     <!>            emergency loco e-stop
 //
-//   Send 100 and 200 in either order to start. The shuttle won't begin
-//   crossing until BOTH have been sent. To restart after a graceful stop,
-//   send 100 and 200 again.
+//   Normal operation: send ONLY 100. To restart after a graceful stop, send
+//   100 again.
 //
 // SENSOR DECLARATIONS (re-send after every flash)
 //   <S 1001 33 0>  S1 (home end, both tracks)
@@ -178,22 +186,26 @@ DONE
 // Trigger routes
 // ============================================================================
 //
-// Each </START N> command spawns a new parallel EXRAIL task running the
-// matching ROUTE body. This is the same mechanism Codex's working v2.0 used.
+// </START 100> is the single normal start command. It clears stale flags, then
+// uses START(id) to spawn the top and middle sequence tasks in parallel.
 
-ROUTE(100, "Start Top Train")
+ROUTE(100, "Start Shuttle")
   RESET(2001)             // clear stop flag from any previous run
   RESET(2010)             // clear barrier and parked flags
   RESET(2011)
   RESET(2012)
   RESET(2013)
-  FOLLOW(101)             // top task body begins
+  START(101)              // spawn top task (Train 2)
+  START(220)              // spawn middle task (Train 4 / Train 5)
+DONE
 
-ROUTE(200, "Start Middle Trains")
-  FOLLOW(220)             // middle task body begins (turnout setup, then alternation)
+ROUTE(200, "DEBUG: Start Middle Only")
+  START(220)              // diagnostic only; do not use for normal startup
+DONE
 
 ROUTE(110, "Stop Shuttle Gracefully")
   SET(2001)
+DONE
 
 // ============================================================================
 // TOP TASK: Train 2 on the top track
@@ -263,6 +275,7 @@ SEQUENCE(150)               // === top parking: lights off, finalize barrier, en
   DELAY(500)
   RESET(2010)
   // task ends; restart by sending </START 100> again
+DONE
 
 // ============================================================================
 // MIDDLE TASK: alternates Train 4 lap and Train 5 lap
@@ -371,4 +384,5 @@ SEQUENCE(250)               // === mid parking: lights off, finalize barrier, en
   SET(2011)                 // unblock any partner currently in AT(2011)
   DELAY(500)
   RESET(2011)
-  // task ends; restart by sending </START 200> again
+  // task ends; restart by sending </START 100> again
+DONE
