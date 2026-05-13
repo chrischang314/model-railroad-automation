@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.6.0-DRAFT)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.7.0-DRAFT)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -11,7 +11,7 @@
 //   Spur (BL):       \--- Train 5 home (off T2_t)
 //
 // ============================================================================
-// v3.6 CHANGES (spawn the middle ROUTE, not the middle SEQUENCE)
+// v3.7 CHANGES (avoid blind S2 arrival delay)
 // ============================================================================
 //
 // SYMPTOM in v3.3/v3.4/v3.5: </START 100> makes Train 2 run left-to-right, then
@@ -49,7 +49,7 @@
 //   one route, or the first START() yields/ends the route before the second
 //   one runs.
 //
-//   v3.5 (this release): use only ONE spawned task. ROUTE(100) does:
+//   v3.5: use only ONE spawned task. ROUTE(100) does:
 //
 //       START(220)       spawn middle task
 //       FOLLOW(101)      current route task becomes the top task
@@ -61,13 +61,22 @@
 //   Train 2, proving the bitmap barrier works and the middle task still was
 //   not starting.
 //
-//   v3.6 (this release): route 100 now starts ROUTE(200), not SEQUENCE(220):
+//   v3.6: route 100 now starts ROUTE(200), not SEQUENCE(220):
 //
 //       START(200)       spawn "DEBUG: Start Middle Only" route
 //       FOLLOW(101)      current route task becomes the top task
 //
 //   ROUTE(200) immediately FOLLOWs SEQUENCE(220). This mirrors the external
 //   command path (`</START 200>`) that DCC-EX already knows how to spawn.
+//
+//   Bench result: startup finally worked. Train 2 ran east, then Train 2 west
+//   and Train 4 east ran together as intended. Train 4 then overran the east
+//   end because it reached S2 while its sequence was still inside the
+//   8-second blind mask before AT(26).
+//
+//   v3.7 (this release): remove the blind pre-AT delay on S2 approaches that
+//   are short enough to overrun. The approaching train now waits for S2 to
+//   clear with AT(-26), starts moving, and immediately arms AT(26).
 //
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
@@ -141,6 +150,16 @@
 //   2011 - mid_ready         barrier flag raised by middle task
 //   2012 - top_parked        latched by SEQ 150 once Train 2 has parked
 //   2013 - mid_parked        latched by SEQ 250 once middle train has parked
+//
+// SHARED-BEAM MOTION RULE
+//   Do not use a long blind DELAY before arming AT() on a short approach.
+//   If the train reaches the beam during the delay, the event is missed and
+//   the train runs through the stop point. For the train approaching a beam
+//   the partner just occupied, wait for that beam to clear first:
+//
+//     AT(-26)    // wait until S2 is clear
+//     FWD(40)
+//     AT(26)     // immediately listen for this train's S2 arrival
 //
 // ============================================================================
 // TURNOUT POLICY (decoders inverted: THROWN = main, CLOSED = diverging)
@@ -283,8 +302,8 @@ SEQUENCE(103)               // === east leg (Train 2 going away; mid going west)
     RESET(2010)
     AT(-2011)
   ENDIF
+  AT(-26)                   // wait until middle train has cleared S2
   FWD(40)
-  DELAY(8000)               // mask middle's west-departure transit across S2
   AT(26)                    // S2 arrival
   FWD(20)
   DELAY(8000)
@@ -327,8 +346,8 @@ SEQUENCE(201)               // === T4 east leg (Train 2 going west) ===
     RESET(2011)
     AT(-2010)
   ENDIF
+  AT(-26)                   // wait until Train 2 has cleared S2
   FWD(40)
-  DELAY(8000)               // mask Train 2's west-departure transit across S2
   AT(26)                    // S2 arrival
   FWD(20)
   DELAY(8000)
@@ -368,8 +387,8 @@ SEQUENCE(203)               // === T5 east leg: leaves spur, runs to east end ==
     RESET(2011)
     AT(-2010)
   ENDIF
+  AT(-26)                   // wait until Train 2 has cleared S2
   FWD(40)
-  DELAY(8000)
   AT(26)                    // S2 arrival
   FWD(20)
   DELAY(10000)              // longer creep -- spur exit transition
