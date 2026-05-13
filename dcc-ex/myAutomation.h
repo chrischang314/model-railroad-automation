@@ -145,6 +145,7 @@
 //
 //     </START 100>   start full shuttle: spawn top + middle tasks
 //     </START 200>   diagnostic only: spawn middle task by itself
+//     </START 290>   diagnostic only: pulse mid_ready (2011) for 1 second
 //     </START 110>   graceful stop (both trains return home, then halt)
 //     </KILL ALL>    hard stop -- terminates every EXRAIL task immediately
 //     <!>            emergency loco e-stop
@@ -208,6 +209,12 @@ ROUTE(100, "Start Shuttle")
 
 ROUTE(200, "DEBUG: Start Middle Only")
   FOLLOW(220)             // diagnostic only; do not use for normal startup
+
+ROUTE(290, "DEBUG: Pulse Mid Ready")
+  SET(2011)               // if top is waiting at AT(2011), this should release it
+  DELAY(1000)
+  RESET(2011)
+DONE
 
 ROUTE(110, "Stop Shuttle Gracefully")
   SET(2001)
