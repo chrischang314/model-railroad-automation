@@ -1,0 +1,106 @@
+name: build-and-push
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Validate web control server
+        run: |
+          cd web-control
+          node --check src/server.js
+          node --check src/dcc-client.js
+          node --check src/layout.js
+
+          DCCEX_MOCK=true PORT=3010 node src/server.js &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+
+          for attempt in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:3010/health >/tmp/health.json; then
+              break
+            fi
+            sleep 0.5
+          done
+
+          curl -fsS http://127.0.0.1:3010/api/config >/tmp/config.json
+          curl -fsS http://127.0.0.1:3010/api/state >/tmp/state.json
+          curl -fsS http://127.0.0.1:3010/ >/tmp/index.html
+
+          grep -q '"service":"model-railroad-web-control"' /tmp/health.json
+          grep -q '"mock":true' /tmp/config.json
+          grep -q "Model Railroad Control" /tmp/index.html
+
+  build:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image name
+        id: image
+        run: |
+          owner_lc="${GITHUB_REPOSITORY_OWNER,,}"
+          repo_lc="${GITHUB_REPOSITORY##*/}"
+          repo_lc="${repo_lc,,}"
+          echo "ref=${REGISTRY}/${owner_lc}/${repo_lc}/web-control" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Docker tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.ref }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web-control
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=web-control
+          cache-to: type=gha,mode=max,scope=web-control

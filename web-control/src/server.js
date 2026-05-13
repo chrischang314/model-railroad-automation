@@ -28,6 +28,15 @@ dcc.start();
 
 const server = http.createServer(async (request, response) => {
   try {
+    if (request.url === "/health" && request.method === "GET") {
+      const state = dcc.getState();
+      return sendJson(response, 200, {
+        ok: true,
+        service: "model-railroad-web-control",
+        connection: state.connection
+      });
+    }
+
     if (request.url === "/api/events" && request.method === "GET") {
       return handleEvents(request, response);
     }
