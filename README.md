@@ -21,7 +21,7 @@ Trigger the shuttle (once configured):
 Stop gracefully (current cycle finishes, then no further dispatch):
 
 ```
-</START 101>
+</START 110>
 ```
 
 Stop immediately (kills running tasks, freezes loco motors):

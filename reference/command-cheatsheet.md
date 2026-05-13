@@ -79,7 +79,7 @@ should be re-applied after every CSB1 reflash.
 | Command | What it does |
 | --- | --- |
 | `</START 100>` | Start the shuttle (sets run flag, dispatches Train 2). |
-| `</START 101>` | Stop the shuttle gracefully (clears run flag; current cycle finishes naturally). |
+| `</START 110>` | Stop the shuttle gracefully (sets stop flag; both trains return home, then halt). |
 | `</START 10 2>` | Start sequence 10 on loco 2. |
 | `</PAUSE>` | Pause every running EXRAIL task (cooperative). |
 | `</RESUME>` | Resume after pause. |

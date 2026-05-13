@@ -14,7 +14,7 @@
 // v3.1 CHANGES (graceful stop, the right way)
 // ============================================================================
 //
-// Adds </START 101> graceful stop. Both trains complete a coordinated final
+// Adds </START 110> graceful stop. Both trains complete a coordinated final
 // half-cycle and park at their HOME positions (Train 2 at top-west,
 // Train 4 at middle-west, Train 5 back on the BL spur), with headlights off.
 // To restart: </START 100>.
@@ -69,7 +69,7 @@
 // GRACEFUL STOP DESIGN (the deadlock-safe part)
 // ============================================================================
 //
-//   </START 101> SETs the stop flag (vpin 2001). Each task checks 2001
+//   </START 110> SETs the stop flag (vpin 2001). Each task checks 2001
 //   ONLY at its HOME arrival (Train 2: end of SEQ 102; middle: end of SEQ 202
 //   for T4 or 204 for T5). At HOME, IF(2001) -> FOLLOW(parking).
 //
@@ -98,7 +98,7 @@
 // share state)
 // ============================================================================
 //
-//   2001 - stop flag         SET by ROUTE(101), RESET by ROUTE(100)
+//   2001 - stop flag         SET by ROUTE(110), RESET by ROUTE(100)
 //   2010 - top_ready         barrier flag raised by top task
 //   2011 - mid_ready         barrier flag raised by middle task
 //   2012 - top_parked        latched by SEQ 150 once Train 2 has parked
@@ -118,7 +118,7 @@
 //   Train 5 on the BL spur.
 //
 //     </START 100>   start (or restart) parallel shuttle
-//     </START 101>   graceful stop (both trains return home, then halt)
+//     </START 110>   graceful stop (both trains return home, then halt)
 //     </KILL ALL>    hard stop -- terminates every EXRAIL task immediately
 //     <!>            emergency loco e-stop
 //
@@ -168,7 +168,7 @@ DONE
 // ============================================================================
 //
 // ROUTE(100) clears every flag before spawning the two tasks, so a restart
-// after a graceful stop begins from a clean state. ROUTE(101) just SETs the
+// after a graceful stop begins from a clean state. ROUTE(110) just SETs the
 // stop flag; the running tasks observe it at their next home-arrival check.
 
 ROUTE(100, "Start Parallel Shuttle")
@@ -180,7 +180,7 @@ ROUTE(100, "Start Parallel Shuttle")
   SENDLOCO(4, 200)        // spawn middle task (one-shot startup spawn)
   FOLLOW(101)             // continue as top task (Train 2 first east leg)
 
-ROUTE(101, "Stop Shuttle Gracefully")
+ROUTE(110, "Stop Shuttle Gracefully")
   SET(2001)
 
 // ============================================================================
