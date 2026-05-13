@@ -6,7 +6,7 @@ const { layout } = require("./layout");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
-const DCCEX_HOST = process.env.DCCEX_HOST || "dccex.local";
+const DCCEX_HOST = process.env.DCCEX_HOST || "192.168.4.22";
 const DCCEX_PORT = Number(process.env.DCCEX_PORT || 2560);
 const DCCEX_MOCK = String(process.env.DCCEX_MOCK || "").toLowerCase() === "true";
 const CONTROL_TOKEN = process.env.CONTROL_TOKEN || "";

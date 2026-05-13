@@ -7,7 +7,7 @@ services:
       - "3000:3000"
     environment:
       PORT: "3000"
-      DCCEX_HOST: "${DCCEX_HOST:-dccex.local}"
+      DCCEX_HOST: "${DCCEX_HOST:-192.168.4.22}"
       DCCEX_PORT: "${DCCEX_PORT:-2560}"
       DCCEX_MOCK: "${DCCEX_MOCK:-false}"
       CONTROL_TOKEN: "${CONTROL_TOKEN:-}"

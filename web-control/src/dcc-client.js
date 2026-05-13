@@ -80,6 +80,9 @@ class DccExClient extends EventEmitter {
         this.state.connection.lastConnectedAt = new Date().toISOString();
         this.emitState();
         this.write("<s>");
+        for (const sensor of this.layout.sensors) {
+          this.write(`<S ${sensor.id} ${sensor.vpin} ${sensor.pullup ?? 0}>`);
+        }
         this.write("<T>");
         this.write("<Q>");
         for (const train of this.layout.trains) {
@@ -155,7 +158,7 @@ class DccExClient extends EventEmitter {
       }
     } else if (op === "l" && tokens.length >= 4) {
       this.applyLocoBroadcast(tokens);
-    } else if (op?.startsWith("iDCCEX")) {
+    } else if (op?.startsWith("iDCC")) {
       this.state.connection.version = content;
     } else if (op === "X") {
       this.state.connection.lastError = raw;

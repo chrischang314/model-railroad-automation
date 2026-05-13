@@ -17,8 +17,8 @@ const layout = {
     { address: 7, label: "KATO Union Pacific FEF-3" }
   ],
   sensors: [
-    { id: 1001, vpin: 33, label: "S1 West Shared Beam" },
-    { id: 1002, vpin: 26, label: "S2 East Shared Beam" }
+    { id: 1001, vpin: 33, pullup: 0, label: "S1 West Shared Beam" },
+    { id: 1002, vpin: 26, pullup: 0, label: "S2 East Shared Beam" }
   ]
 };
 

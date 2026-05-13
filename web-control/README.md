@@ -19,7 +19,7 @@ Real command station:
 
 ```bash
 cd web-control
-$env:DCCEX_HOST="dccex.local"; $env:DCCEX_PORT="2560"; node src/server.js
+$env:DCCEX_HOST="192.168.4.22"; $env:DCCEX_PORT="2560"; node src/server.js
 ```
 
 Open <http://localhost:3000>.
@@ -36,13 +36,13 @@ Or build directly:
 
 ```bash
 docker build -t model-railroad-web-control ./web-control
-docker run --rm -p 3000:3000 -e DCCEX_HOST=dccex.local model-railroad-web-control
+docker run --rm -p 3000:3000 -e DCCEX_HOST=192.168.4.22 model-railroad-web-control
 ```
 
-If `dccex.local` does not resolve from inside Docker, use the CSB1's IP address:
+If the CSB1's IP changes, override `DCCEX_HOST` with the new address:
 
 ```bash
-docker run --rm -p 3000:3000 -e DCCEX_HOST=192.168.1.50 model-railroad-web-control
+docker run --rm -p 3000:3000 -e DCCEX_HOST=192.168.4.99 model-railroad-web-control
 ```
 
 Useful environment variables:
@@ -50,7 +50,7 @@ Useful environment variables:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP port inside the container |
-| `DCCEX_HOST` | `dccex.local` | CSB1 or JMRI DCC++ Over TCP host |
+| `DCCEX_HOST` | `192.168.4.22` | CSB1 or JMRI DCC++ Over TCP host |
 | `DCCEX_PORT` | `2560` | DCC-EX TCP port |
 | `DCCEX_MOCK` | `false` | Set `true` for UI testing without hardware |
 | `CONTROL_TOKEN` | empty | Optional bearer token for write/control requests |
@@ -65,6 +65,7 @@ Useful environment variables:
 - Trains: `<t cab speed direction>`
 - F0/headlights: `<F cab 0 state>`
 - Sensor status: `<Q>` plus live `<Q id>` / `<q id>` broadcasts
+- Sensor setup on backend connect: `<S 1001 33 0>` and `<S 1002 26 0>`
 
 ## References
 
