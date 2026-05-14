@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: railroad
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: csb1-ota-updater
+  namespace: railroad
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: csb1-ota-updater
+  template:
+    metadata:
+      labels:
+        app: csb1-ota-updater
+    spec:
+      nodeSelector:
+        railroad-csb1-updater: "true"
+      containers:
+        - name: updater
+          image: ghcr.io/chrischang314/model-railroad-csb1-updater:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          env:
+            - name: MODEL_REPO_URL
+              value: https://github.com/chrischang314/model-railroad-automation.git
+            - name: MODEL_REPO_BRANCH
+              value: main
+            - name: COMMANDSTATION_REF
+              value: v5.6.0-Prod
+            - name: DEVICE_PORT
+              value: /dev/csb1
+            - name: DCCEX_HOST
+              value: "192.168.4.22"
+            - name: DCCEX_PORT
+              value: "2560"
+            - name: POLL_SECONDS
+              value: "300"
+            - name: FLASH_ON_FIRST_RUN
+              value: "false"
+            - name: AUTO_FLASH
+              value: "true"
+          volumeMounts:
+            - name: csb1-usb
+              mountPath: /dev/csb1
+            - name: updater-state
+              mountPath: /state
+            - name: updater-work
+              mountPath: /work
+      volumes:
+        # Replace this with the stable /dev/serial/by-id/... symlink for your CSB1.
+        - name: csb1-usb
+          hostPath:
+            path: /dev/serial/by-id/REPLACE_WITH_CSB1_USB_SERIAL
+            type: CharDevice
+        - name: updater-state
+          hostPath:
+            path: /var/lib/csb1-ota-updater/state
+            type: DirectoryOrCreate
+        - name: updater-work
+          hostPath:
+            path: /var/lib/csb1-ota-updater/work
+            type: DirectoryOrCreate

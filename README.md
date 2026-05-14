@@ -112,6 +112,7 @@ Spur:             \--- Train 5 home
 | --- | --- |
 | Current EXRAIL automation | [`dcc-ex/myAutomation.h`](dcc-ex/myAutomation.h) |
 | Run browser-based train control | [`web-control/README.md`](web-control/README.md) |
+| Set up automatic CSB1 reflashing | [`ota-updater/README.md`](ota-updater/README.md) |
 | Stable backup copy | [`dcc-ex/myAutomation-backup.h`](dcc-ex/myAutomation-backup.h) |
 | Future-LLM handoff and troubleshooting | [`docs/handoff-document.md`](docs/handoff-document.md) |
 | Fast rules and pitfalls | [`docs/lessons-learned.md`](docs/lessons-learned.md) |
