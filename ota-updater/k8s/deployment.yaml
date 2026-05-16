@@ -47,6 +47,16 @@ spec:
               value: "false"
             - name: AUTO_FLASH
               value: "true"
+            - name: CSB1_WIFI_SSID
+              valueFrom:
+                secretKeyRef:
+                  name: csb1-wifi
+                  key: ssid
+            - name: CSB1_WIFI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: csb1-wifi
+                  key: password
           volumeMounts:
             - name: csb1-usb
               mountPath: /dev/csb1

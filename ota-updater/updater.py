@@ -116,8 +116,26 @@ def sync_repo(path, url, ref):
 
 def prepare_commandstation_tree(cs_repo, automation_src, config_src):
     shutil.copy2(automation_src, cs_repo / "myAutomation.h")
-    shutil.copy2(config_src, cs_repo / "config.h")
+    config_dst = cs_repo / "config.h"
+    shutil.copy2(config_src, config_dst)
+    inject_wifi_config(config_dst)
     log(f"copied {automation_src.name} and {config_src.name} into CommandStation-EX")
+
+
+def inject_wifi_config(config_path):
+    ssid = os.environ.get("CSB1_WIFI_SSID")
+    password = os.environ.get("CSB1_WIFI_PASSWORD")
+    if not ssid or not password:
+        return
+    with config_path.open("a", encoding="utf-8") as config:
+        config.write("\n// Injected by ota-updater from Kubernetes Secret; do not commit secrets.\n")
+        config.write(f"#undef WIFI_SSID\n#define WIFI_SSID \"{c_string(ssid)}\"\n")
+        config.write(f"#undef WIFI_PASSWORD\n#define WIFI_PASSWORD \"{c_string(password)}\"\n")
+    log("injected CSB1 WiFi credentials from environment")
+
+
+def c_string(value):
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def ensure_toolchain():

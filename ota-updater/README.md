@@ -47,8 +47,8 @@ The updater:
 - Powers down/stops trains before flashing by sending `</KILL ALL>`, `<!>`,
   and `<0>` to `DCCEX_HOST:DCCEX_PORT`.
 - Re-sends S1/S2 physical sensor declarations after flashing.
-- Uses `DONT_TOUCH_WIFI_CONF` in `dcc-ex/config.csb1.h` so flashing does not
-  overwrite the CSB1's stored WiFi configuration.
+- Injects CSB1 WiFi credentials from a Kubernetes Secret at build time. Do not
+  commit WiFi credentials to `dcc-ex/config.csb1.h`.
 
 ## Local Pi Setup From Scratch
 
@@ -151,8 +151,16 @@ docker buildx build \
 
 ## Deploy To Kubernetes
 
-1. Edit `ota-updater/k8s/deployment.yaml`.
-2. Replace:
+1. Create the WiFi Secret in the cluster:
+
+   ```bash
+   kubectl -n railroad create secret generic csb1-wifi \
+     --from-literal=ssid='<your-ssid>' \
+     --from-literal=password='<your-password>'
+   ```
+
+2. Edit `ota-updater/k8s/deployment.yaml`.
+3. Replace:
 
    ```yaml
    /dev/serial/by-id/REPLACE_WITH_CSB1_USB_SERIAL
@@ -160,7 +168,7 @@ docker buildx build \
 
    with your actual `/dev/serial/by-id/...` path.
 
-3. Apply:
+4. Apply:
 
    ```bash
    kubectl apply -f ota-updater/k8s/deployment.yaml
@@ -218,7 +226,8 @@ docker run --rm -it \
 - The CSB1 will reboot during upload. WiFi and the web control app will drop
   temporarily.
 - Keep `dcc-ex/config.csb1.h` conservative. A bad `config.h` can change WiFi,
-  motor driver, or display behavior.
+  motor driver, or display behavior. WiFi credentials belong in the Kubernetes
+  Secret, not in git.
 - Treat automatic flashing like CI/CD for physical hardware. Start with
   `AUTO_FLASH=false` or `FLASH_ON_FIRST_RUN=false`, watch logs, then enable
   full automation once one manual force flash succeeds.
