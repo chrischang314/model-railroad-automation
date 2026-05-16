@@ -53,10 +53,9 @@ spec:
             - name: updater-work
               mountPath: /work
       volumes:
-        # Replace this with the stable /dev/serial/by-id/... symlink for your CSB1.
         - name: csb1-usb
           hostPath:
-            path: /dev/serial/by-id/REPLACE_WITH_CSB1_USB_SERIAL
+            path: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
             type: CharDevice
         - name: updater-state
           hostPath:
