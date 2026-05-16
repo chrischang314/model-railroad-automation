@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import fcntl
 import hashlib
 import os
 import shutil
@@ -15,6 +16,7 @@ ESP32_CORE = "esp32:esp32@2.0.17"
 ETHERNET_LIBRARY = "Ethernet@2.0.2"
 MODEL_REPO_URL = "https://github.com/chrischang314/model-railroad-automation.git"
 COMMANDSTATION_REPO_URL = "https://github.com/DCC-EX/CommandStation-EX.git"
+LOCK_FD = None
 
 
 def main():
@@ -200,16 +202,25 @@ def hash_files(paths):
 
 
 def acquire_lock(path):
+    global LOCK_FD
     try:
-        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.write(fd, str(os.getpid()).encode("ascii"))
-        os.close(fd)
+        fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        os.ftruncate(fd, 0)
+        os.write(fd, f"{os.getpid()}\n".encode("ascii"))
+        LOCK_FD = fd
         return True
-    except FileExistsError:
+    except BlockingIOError:
+        os.close(fd)
         return False
 
 
 def release_lock(path):
+    global LOCK_FD
+    if LOCK_FD is not None:
+        fcntl.flock(LOCK_FD, fcntl.LOCK_UN)
+        os.close(LOCK_FD)
+        LOCK_FD = None
     try:
         path.unlink()
     except FileNotFoundError:
