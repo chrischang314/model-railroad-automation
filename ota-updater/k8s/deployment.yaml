@@ -23,7 +23,7 @@ spec:
       containers:
         - name: updater
           image: ghcr.io/chrischang314/model-railroad-csb1-updater:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             privileged: true
           env:
