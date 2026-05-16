@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.16.0-STABLE)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.17.0)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -163,6 +163,12 @@
 //   Bench result: confirmed working on the physical layout. Promote v3.16 as
 //   the current stable script.
 //
+//   v3.17: add explicit T2 route-lock delays before Train 5 moves. Field
+//   observation: Train 5 could begin moving before T2 had visibly completed
+//   its CLOSED/spur movement. The fix reasserts T2 CLOSED and waits before
+//   the middle task raises 2011, so Train 2 stays parked during the turnout
+//   settle period and shared-beam timing is not disturbed.
+//
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
 //      All conditionals here are single-level IF/IFNOT ... ELSE ... ENDIF.
@@ -257,6 +263,10 @@
 //   T1_t (addr 1, double-slip)  THROWN always. Top/middle stay parallel.
 //   T2_t (addr 2, left-hand)    THROWN for T4 lap, CLOSED for T5 lap.
 //   T3_t (addr 3, right-hand)   THROWN always.
+//
+//   T2 route-lock rule: assert the route, wait briefly, assert it again, then
+//   wait for the turnout to physically settle BEFORE setting the 2011 ready
+//   barrier. That keeps the partner train stopped while T2 is moving.
 //
 // ============================================================================
 // CONTROL
@@ -450,6 +460,9 @@ SEQUENCE(220)               // === middle-task setup: turnout, headlights ===
 SEQUENCE(201)               // === T4 east leg (Train 2 going west) ===
   SETLOCO(4)
   THROW(2)                  // re-assert after a T5 -> T4 transition
+  DELAY(1000)
+  THROW(2)                  // route-lock: make sure T2 is fully on the T4 path
+  DELAY(3000)               // tune only after turnout motion is visibly reliable
   IFNOT(2012)               // skip barrier if top has parked
     SET(2011)               // stage; wait for Train 2 to clear S2
     AT(2010)
@@ -491,7 +504,9 @@ SEQUENCE(202)               // === T4 west leg (Train 2 going east) ===
 SEQUENCE(203)               // === T5 east leg: leaves spur, runs to east end ===
   SETLOCO(5)
   CLOSE(2)                  // T2_t -> spur position
-  DELAY(2000)
+  DELAY(1000)
+  CLOSE(2)                  // route-lock: reassert CLOSED before Train 5 moves
+  DELAY(4000)               // keep before SET(2011), so Train 2 remains stopped
   FON(0)
   IFNOT(2012)
     SET(2011)               // stage; wait for Train 2 to clear S2
@@ -511,6 +526,10 @@ SEQUENCE(203)               // === T5 east leg: leaves spur, runs to east end ==
 
 SEQUENCE(204)               // === T5 west leg: returns to spur via still-CLOSED T2_t ===
   SETLOCO(5)
+  CLOSE(2)                  // route-lock: T5 return also needs the spur path
+  DELAY(1000)
+  CLOSE(2)
+  DELAY(4000)               // tune only if T2 proves consistently faster
   IFNOT(2012)
     SET(2011)               // stage; wait for Train 2 to clear S1
     AT(2010)

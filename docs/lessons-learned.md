@@ -1,7 +1,7 @@
 # Lessons Learned
 
 Read this before changing `dcc-ex/myAutomation.h`. The current stable script is
-v3.16.0-STABLE and was confirmed on the physical layout.
+v3.17.0 and is pending physical confirmation of the T2 route-lock change.
 
 ## Current Rules That Matter
 
@@ -26,6 +26,9 @@ v3.16.0-STABLE and was confirmed on the physical layout.
   - T1 and T3 start thrown.
   - T2 thrown routes Train 4.
   - T2 closed routes Train 5.
+- T2 must be route-locked before Train 5 moves. Reassert `CLOSE(2)` and let
+  the turnout settle before the middle task raises `2011`; placing the delay
+  after `2011` can let Train 2 start moving while Train 5 is still waiting.
 - Current stable speeds are cruise 40 and creep 20. Train 2 and Train 4 creep
   for 8 seconds; Train 5 creeps for 10 seconds.
 
@@ -49,6 +52,8 @@ v3.16.0-STABLE and was confirmed on the physical layout.
   hard-to-recover positions.
 - Parking flags plus a short barrier-finalize pulse. This prevents one task
   from waiting forever after its partner has parked.
+- Turnout-settle waits belong before paired departure barriers. That creates
+  a boring stationary pause instead of disturbing the shared-beam timing.
 
 ## What Did Not Work
 

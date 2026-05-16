@@ -3,8 +3,9 @@
 This is the current technical handoff for the working DCC-EX / EXRAIL
 automation. It supersedes older two-train notes from the initial project import.
 
-Last updated: 2026-05-13
-Stable script: `dcc-ex/myAutomation.h`, v3.16.0-STABLE
+Last updated: 2026-05-16
+Current script: `dcc-ex/myAutomation.h`, v3.17.0 route-lock candidate
+Last physically confirmed stable baseline: v3.16.0-STABLE
 Normal start command: `</START 100>`
 Graceful stop command: `</START 110>`
 
@@ -77,6 +78,12 @@ Turnout policy:
 Important correction: the turnout decoder polarities are inverted from what an
 LLM may guess. In this layout, thrown means the main/straight path for T1/T3
 and the Train 4 middle route for T2. T2 closed selects Train 5's spur route.
+
+T2 has a physical route-lock delay in the script. Before Train 5 moves, the
+middle task closes T2, waits, closes T2 again, and waits for the turnout to
+settle before raising the `2011` ready barrier. This keeps Train 2 parked while
+the turnout is still moving. Do not move that delay after `SET(2011)`, because
+Train 2 may already be moving by then.
 
 ## 3. Commands
 
@@ -171,6 +178,9 @@ The bitmap HAL declaration matters. Without it, `SET`/`RESET` and
   the surviving task from deadlocking when the other task has already parked.
 - Halved speeds: cruise 40 and creep 20 are the stable physical values.
 - Train 5 needs a 10 second creep period through the spur transition.
+- T2 needs explicit route-lock settling before Train 5 moves: reassert
+  `CLOSE(2)` before the `2011` ready barrier, not after the paired departure
+  has begun.
 
 ## 6. What Did Not Work
 
