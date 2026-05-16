@@ -8,6 +8,8 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git bash \
   && rm -rf /var/lib/apt/lists/*
 
+RUN pip install --no-cache-dir pyserial
+
 RUN set -eux; \
   case "${TARGETARCH}/${TARGETVARIANT}" in \
     "amd64/") cli_arch="Linux_64bit" ;; \
