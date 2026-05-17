@@ -50,6 +50,9 @@ chat-import/
 # Claude Code per-user/local state -- not for sharing
 .claude/
 
+# Web control local runtime data
+web-control/data/
+
 # Python virtualenvs (in case any tooling lands here later)
 .venv/
 venv/

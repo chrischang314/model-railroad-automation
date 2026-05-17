@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Railroad Workbench</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Railroad Workbench</h1>
+        <p id="connectionSummary">Connecting...</p>
+      </div>
+      <nav class="nav-tabs" aria-label="Railroad pages">
+        <a href="/">Control</a>
+        <a class="active" href="/operations.html">Programming</a>
+      </nav>
+      <div class="topbar-actions">
+        <button id="refreshButton" class="button secondary">Refresh</button>
+        <button id="powerOnButton" class="button secondary">Power On</button>
+        <button id="powerOffButton" class="button secondary">Power Off</button>
+      </div>
+    </header>
+
+    <main class="tools-layout">
+      <section class="panel command-panel wide-panel">
+        <div class="panel-heading">
+          <h2>Direct Command</h2>
+          <span id="commandStatus" class="status-pill unknown">Ready</span>
+        </div>
+        <form id="rawCommandForm" class="command-console">
+          <input id="rawCommandInput" type="text" autocomplete="off" spellcheck="false" placeholder="<s>">
+          <button class="button primary" type="submit">Send</button>
+        </form>
+        <div class="quick-command-grid" id="quickCommands"></div>
+        <div id="authPanel" class="auth-panel hidden">
+          <label for="tokenInput">Control token</label>
+          <input id="tokenInput" type="password" autocomplete="current-password">
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Roster</h2>
+        </div>
+        <form id="rosterForm" class="form-grid compact-form">
+          <label>
+            Address
+            <input id="rosterAddress" type="text" inputmode="numeric" required>
+          </label>
+          <label>
+            Name
+            <input id="rosterName" type="text" required>
+          </label>
+          <label>
+            Manufacturer
+            <input id="rosterManufacturer" type="text">
+          </label>
+          <label>
+            Model
+            <input id="rosterModel" type="text">
+          </label>
+          <label>
+            Decoder
+            <input id="rosterDecoder" type="text">
+          </label>
+          <label>
+            Function labels
+            <input id="rosterFunctions" type="text" placeholder="F0/F1/F2">
+          </label>
+          <label class="span-2">
+            Notes
+            <textarea id="rosterNotes" rows="3"></textarea>
+          </label>
+          <div class="button-row span-2">
+            <button class="button primary" type="submit">Save Entry</button>
+            <button id="clearRosterFormButton" class="button ghost" type="button">Clear</button>
+            <button class="button secondary command-button" type="button" data-command="&lt;JR&gt;">Query CSB1 Roster</button>
+          </div>
+        </form>
+        <div id="rosterTable" class="data-table"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>DecoderPro</h2>
+        </div>
+        <div class="tool-group">
+          <h3>Programming Track</h3>
+          <div class="button-row">
+            <button class="button secondary command-button" type="button" data-command="&lt;1 PROG&gt;">Prog Power On</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;0 PROG&gt;">Prog Power Off</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;R&gt;">Read Address</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;R LOCOID&gt;">Read Loco ID</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;R CONSIST&gt;">Read Consist</button>
+          </div>
+          <form id="cvReadForm" class="inline-form">
+            <label>
+              CV
+              <input id="cvReadCv" type="text" inputmode="numeric" value="1" required>
+            </label>
+            <button class="button secondary" type="submit">Read CV</button>
+          </form>
+          <form id="cvWriteForm" class="inline-form">
+            <label>
+              CV
+              <input id="cvWriteCv" type="text" inputmode="numeric" value="1" required>
+            </label>
+            <label>
+              Value
+              <input id="cvWriteValue" type="text" inputmode="numeric" required>
+            </label>
+            <button class="button warning" type="submit">Write CV</button>
+          </form>
+          <form id="addressWriteForm" class="inline-form">
+            <label>
+              Address
+              <input id="addressWriteValue" type="text" inputmode="numeric" required>
+            </label>
+            <button class="button warning" type="submit">Write Address</button>
+          </form>
+        </div>
+
+        <div class="tool-group">
+          <h3>Ops Mode</h3>
+          <form id="pomWriteForm" class="inline-form">
+            <label>
+              Cab
+              <input id="pomCab" type="text" inputmode="numeric" required>
+            </label>
+            <label>
+              CV
+              <input id="pomCv" type="text" inputmode="numeric" required>
+            </label>
+            <label>
+              Value
+              <input id="pomValue" type="text" inputmode="numeric" required>
+            </label>
+            <button class="button warning" type="submit">Write Main CV</button>
+          </form>
+          <form id="pomBitForm" class="inline-form">
+            <label>
+              Cab
+              <input id="pomBitCab" type="text" inputmode="numeric" required>
+            </label>
+            <label>
+              CV
+              <input id="pomBitCv" type="text" inputmode="numeric" required>
+            </label>
+            <label>
+              Bit
+              <input id="pomBitNumber" type="text" inputmode="numeric" required>
+            </label>
+            <label>
+              State
+              <select id="pomBitValue">
+                <option value="1">On</option>
+                <option value="0">Off</option>
+              </select>
+            </label>
+            <button class="button warning" type="submit">Write Bit</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>PanelPro Tables</h2>
+        </div>
+        <div class="tool-group">
+          <h3>Turnouts</h3>
+          <form id="turnoutControlForm" class="inline-form">
+            <label>
+              ID
+              <input id="turnoutControlId" type="text" inputmode="numeric" value="2" required>
+            </label>
+            <label>
+              State
+              <select id="turnoutControlState">
+                <option value="1">Thrown</option>
+                <option value="0">Closed</option>
+              </select>
+            </label>
+            <button class="button secondary" type="submit">Set Turnout</button>
+          </form>
+          <form id="turnoutDefineForm" class="inline-form">
+            <label>
+              ID
+              <input id="turnoutDefineId" type="text" inputmode="numeric" required>
+            </label>
+            <label>
+              Linear address
+              <input id="turnoutDefineLinear" type="text" inputmode="numeric" required>
+            </label>
+            <label class="checkbox-label">
+              <input id="turnoutDefineSave" type="checkbox" checked>
+              Save
+            </label>
+            <button class="button warning" type="submit">Define DCC Turnout</button>
+          </form>
+          <form id="turnoutDeleteForm" class="inline-form">
+            <label>
+              ID
+              <input id="turnoutDeleteId" type="text" inputmode="numeric" required>
+            </label>
+            <label class="checkbox-label">
+              <input id="turnoutDeleteSave" type="checkbox" checked>
+              Save
+            </label>
+            <button class="button danger" type="submit">Delete Turnout</button>
+          </form>
+          <div class="button-row">
+            <button class="button ghost command-button" type="button" data-command="&lt;T&gt;">List Turnouts</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;JT&gt;">List JSON Turnouts</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;E&gt;">Save EEPROM</button>
+          </div>
+        </div>
+
+        <div class="tool-group">
+          <h3>Sensors</h3>
+          <form id="sensorDefineForm" class="inline-form">
+            <label>
+              ID
+              <input id="sensorDefineId" type="text" inputmode="numeric" value="1001" required>
+            </label>
+            <label>
+              Vpin
+              <input id="sensorDefineVpin" type="text" inputmode="numeric" value="33" required>
+            </label>
+            <label>
+              Pullup
+              <select id="sensorDefinePullup">
+                <option value="0">Off</option>
+                <option value="1">On</option>
+              </select>
+            </label>
+            <label class="checkbox-label">
+              <input id="sensorDefineSave" type="checkbox">
+              Save
+            </label>
+            <button class="button warning" type="submit">Define Sensor</button>
+          </form>
+          <form id="sensorForceForm" class="inline-form">
+            <label>
+              ID
+              <input id="sensorForceId" type="text" inputmode="numeric" value="1001" required>
+            </label>
+            <label>
+              State
+              <select id="sensorForceState">
+                <option value="1">Active</option>
+                <option value="0">Inactive</option>
+              </select>
+            </label>
+            <button class="button secondary" type="submit">Force Sensor</button>
+          </form>
+          <form id="sensorDeleteForm" class="inline-form">
+            <label>
+              ID
+              <input id="sensorDeleteId" type="text" inputmode="numeric" required>
+            </label>
+            <label class="checkbox-label">
+              <input id="sensorDeleteSave" type="checkbox">
+              Save
+            </label>
+            <button class="button danger" type="submit">Delete Sensor</button>
+          </form>
+          <div class="button-row">
+            <button class="button ghost command-button" type="button" data-command="&lt;S&gt;">List Sensors</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;Q&gt;">Poll Sensors</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;E&gt;">Save EEPROM</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Automation</h2>
+        </div>
+        <div class="tool-group">
+          <form id="routeStartForm" class="inline-form">
+            <label>
+              Route
+              <input id="routeStartId" type="text" inputmode="numeric" value="100" required>
+            </label>
+            <button class="button primary" type="submit">Start Route</button>
+          </form>
+          <div class="button-row">
+            <button class="button warning command-button" type="button" data-command="&lt;/START 110&gt;">Graceful Stop</button>
+            <button class="button danger command-button" type="button" data-command="&lt;/KILL ALL&gt;">Kill EXRAIL</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;/&gt;">List Tasks</button>
+            <button class="button ghost command-button" type="button" data-command="&lt;JA&gt;">List Routes</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>JMRI Map</h2>
+        </div>
+        <div class="mapping-grid">
+          <div><strong>Roster Table</strong><span>Local entries and <code>&lt;JR&gt;</code></span></div>
+          <div><strong>Basic Programmer</strong><span><code>&lt;R&gt;</code>, <code>&lt;W address&gt;</code>, CV1</span></div>
+          <div><strong>Comprehensive Programmer</strong><span>CV read/write forms and raw command</span></div>
+          <div><strong>Turnout Table</strong><span><code>&lt;T id state&gt;</code>, <code>&lt;T id DCC linearAddr&gt;</code></span></div>
+          <div><strong>Sensor Table</strong><span><code>&lt;S id vpin pullup&gt;</code>, <code>&lt;Q&gt;</code></span></div>
+          <div><strong>JSON Console</strong><span>Direct DCC-EX command console</span></div>
+        </div>
+      </section>
+
+      <section class="panel messages-panel">
+        <div class="panel-heading">
+          <h2>Command Log</h2>
+        </div>
+        <pre id="messageLog" class="message-log"></pre>
+      </section>
+    </main>
+
+    <script src="/operations.js"></script>
+  </body>
+</html>

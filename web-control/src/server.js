@@ -11,6 +11,7 @@ const DCCEX_PORT = Number(process.env.DCCEX_PORT || 2560);
 const DCCEX_MOCK = String(process.env.DCCEX_MOCK || "").toLowerCase() === "true";
 const CONTROL_TOKEN = process.env.CONTROL_TOKEN || "";
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
+const ROSTER_FILE = process.env.ROSTER_FILE || path.join(__dirname, "..", "data", "roster.json");
 
 const dcc = new DccExClient({
   host: DCCEX_HOST,
@@ -79,7 +80,53 @@ async function handleApi(request, response) {
     return sendJson(response, 200, dcc.getState());
   }
 
+  if (request.method === "GET" && pathname === "/api/roster") {
+    return sendJson(response, 200, { roster: await readRoster() });
+  }
+
   requireControlToken(request);
+
+  if (request.method === "POST" && pathname === "/api/command") {
+    const body = await readJson(request);
+    return sendCommand(response, normalizeCommand(body.command));
+  }
+
+  if (request.method === "POST" && pathname === "/api/commands") {
+    const body = await readJson(request);
+    if (!Array.isArray(body.commands) || body.commands.length < 1 || body.commands.length > 20) {
+      return sendJson(response, 400, { error: "commands must contain 1 to 20 commands" });
+    }
+
+    try {
+      const results = [];
+      for (const command of body.commands) {
+        results.push(await dcc.send(normalizeCommand(command)));
+      }
+      return sendJson(response, 200, { ok: true, results });
+    } catch (error) {
+      return sendJson(response, 503, { error: error.message });
+    }
+  }
+
+  if (request.method === "POST" && pathname === "/api/roster") {
+    const body = await readJson(request);
+    const entry = validateRosterEntry(body);
+    const roster = await readRoster();
+    const index = roster.findIndex((item) => Number(item.address) === entry.address);
+    if (index === -1) roster.push(entry);
+    else roster[index] = entry;
+    roster.sort((left, right) => Number(left.address) - Number(right.address));
+    await writeRoster(roster);
+    return sendJson(response, 200, { ok: true, roster });
+  }
+
+  const rosterMatch = pathname.match(/^\/api\/roster\/(\d+)$/);
+  if (request.method === "DELETE" && rosterMatch) {
+    const address = Number(rosterMatch[1]);
+    const roster = (await readRoster()).filter((item) => Number(item.address) !== address);
+    await writeRoster(roster);
+    return sendJson(response, 200, { ok: true, roster });
+  }
 
   if (request.method === "POST" && pathname === "/api/automation/start") {
     return sendCommand(response, `</START ${layout.automation.startRoute}>`);
@@ -171,6 +218,64 @@ async function sendCommand(response, command) {
   } catch (error) {
     sendJson(response, 503, { error: error.message });
   }
+}
+
+function normalizeCommand(value) {
+  const command = String(value || "").trim();
+  if (!command) {
+    const error = new Error("command is required");
+    error.statusCode = 400;
+    throw error;
+  }
+  return command.startsWith("<") ? command : `<${command}>`;
+}
+
+async function readRoster() {
+  try {
+    return JSON.parse(await fs.readFile(ROSTER_FILE, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return layout.trains.map((train) => ({
+      address: train.address,
+      name: train.label,
+      manufacturer: train.label.split(" ")[0] || "",
+      model: train.label.split(" ").slice(1).join(" "),
+      decoder: "",
+      functions: "F0/F1/F2",
+      notes: ""
+    }));
+  }
+}
+
+async function writeRoster(roster) {
+  await fs.mkdir(path.dirname(ROSTER_FILE), { recursive: true });
+  await fs.writeFile(ROSTER_FILE, `${JSON.stringify(roster, null, 2)}\n`, "utf8");
+}
+
+function validateRosterEntry(body) {
+  const address = Number(body.address);
+  if (!Number.isInteger(address) || address < 1 || address > 10293) {
+    const error = new Error("address must be an integer from 1 to 10293");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const name = String(body.name || "").trim();
+  if (!name) {
+    const error = new Error("name is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    address,
+    name: name.slice(0, 120),
+    manufacturer: String(body.manufacturer || "").trim().slice(0, 80),
+    model: String(body.model || "").trim().slice(0, 80),
+    decoder: String(body.decoder || "").trim().slice(0, 80),
+    functions: String(body.functions || "").trim().slice(0, 180),
+    notes: String(body.notes || "").trim().slice(0, 1000)
+  };
 }
 
 function handleEvents(request, response) {

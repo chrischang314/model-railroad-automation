@@ -198,9 +198,26 @@ class DccExClient extends EventEmitter {
       this.state.automation.running = false;
       this.state.automation.stopRequested = false;
       for (const train of Object.values(this.state.trains)) train.speed = 0;
-    } else if (tokens[0] === "T" && tokens.length >= 3) {
+    } else if (tokens[0] === "T" && tokens.length >= 3 && ["0", "1", "C", "T"].includes(tokens[2])) {
       const turnout = this.state.turnouts[tokens[1]];
       if (turnout) turnout.state = tokens[2] === "1" || tokens[2] === "T" ? "thrown" : "closed";
+    } else if (tokens[0] === "S" && tokens.length >= 4) {
+      this.state.sensors[tokens[1]] = {
+        id: Number(tokens[1]),
+        vpin: Number(tokens[2]),
+        pullup: Number(tokens[3]),
+        label: `Sensor ${tokens[1]}`,
+        active: null,
+        lastUpdated: new Date().toISOString()
+      };
+    } else if (tokens[0] === "S" && tokens.length === 2) {
+      delete this.state.sensors[tokens[1]];
+    } else if (tokens[0] === "s" && tokens.length >= 3) {
+      const sensor = this.state.sensors[tokens[1]];
+      if (sensor) {
+        sensor.active = tokens[2] === "1";
+        sensor.lastUpdated = new Date().toISOString();
+      }
     } else if (tokens[0] === "t" && tokens.length >= 4) {
       const train = this.state.trains[tokens[1]];
       if (train) {

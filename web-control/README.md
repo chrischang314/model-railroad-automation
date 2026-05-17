@@ -24,6 +24,9 @@ $env:DCCEX_HOST="192.168.4.22"; $env:DCCEX_PORT="2560"; node src/server.js
 
 Open <http://localhost:3000>.
 
+The programming/workbench page is available at
+<http://localhost:3000/operations.html>.
+
 ## Docker
 
 From the repo root:
@@ -54,6 +57,7 @@ Useful environment variables:
 | `DCCEX_PORT` | `2560` | DCC-EX TCP port |
 | `DCCEX_MOCK` | `false` | Set `true` for UI testing without hardware |
 | `CONTROL_TOKEN` | empty | Optional bearer token for write/control requests |
+| `ROSTER_FILE` | `web-control/data/roster.json` | Local website roster metadata store |
 
 ## Implemented Controls
 
@@ -67,6 +71,24 @@ Useful environment variables:
 - Sensor status: `<Q>` plus live `<Q id>` / `<q id>` broadcasts
 - Sensor setup on backend connect: `<S 1001 33 0>` and `<S 1002 26 0>`
 
+## Programming Workbench
+
+The `/operations.html` page mirrors the JMRI workflows that map cleanly to
+DCC-EX native commands:
+
+- Direct command console for arbitrary DCC-EX commands.
+- Local roster metadata editor with address, model, decoder, function labels,
+  and notes.
+- DecoderPro-style programming track helpers for `<R>`, `<R cv>`, `<W cv value>`,
+  and `<W address>`.
+- Ops-mode programming helpers for `<w cab cv value>` and `<b cab cv bit value>`.
+- PanelPro-style turnout and sensor table helpers for `<T ...>`, `<S ...>`,
+  `<Q>`, and `<E>`.
+
+DCC-EX reports roster entries with `<JR>`, but rich DecoderPro roster metadata
+is a JMRI-side file concept. The web roster therefore stores local metadata in
+`ROSTER_FILE`; decoder programming still goes directly to the command station.
+
 ## References
 
 - DCC-EX native command summary:
@@ -75,3 +97,7 @@ Useful environment variables:
   <https://dcc-ex.com/exrail/exrail-command-reference.html>
 - JMRI DCC-EX hardware support:
   <https://www.jmri.org/help/en/html/hardware/dcc-ex/index.shtml>
+- JMRI DecoderPro:
+  <https://www.jmri.org/help/en/package/apps/gui3/dp3/DecoderPro3.shtml>
+- JMRI JSON servlet:
+  <https://www.jmri.org/help/en/html/web/JsonServlet.shtml>
