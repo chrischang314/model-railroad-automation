@@ -79,15 +79,14 @@ function renderSensors() {
     const live = state.sensors[String(sensor.id)];
     const status = live?.active === true ? "active" : live?.active === false ? "inactive" : "unknown";
     const item = document.createElement("article");
-    item.className = "item sensor";
+    item.className = "sensor-tile";
     item.innerHTML = `
-      <div class="item-head">
-        <div>
-          <h3>${escapeHtml(sensor.label)}</h3>
-          <div class="meta">Sensor ${sensor.id} | vpin ${sensor.vpin}</div>
-        </div>
-        <span class="status-pill ${status}">${status}</span>
+      <div class="status-dot ${status}"></div>
+      <div>
+        <h3>${escapeHtml(sensor.label)}</h3>
+        <div class="meta">Sensor ${sensor.id} / vpin ${sensor.vpin}</div>
       </div>
+      <span class="status-pill ${status}">${status}</span>
     `;
     sensorGrid.append(item);
   }
@@ -99,16 +98,14 @@ function renderTurnouts() {
     const live = state.turnouts[String(turnout.id)];
     const status = live?.state || "unknown";
     const item = document.createElement("article");
-    item.className = "item";
+    item.className = "control-row turnout-row";
     item.innerHTML = `
-      <div class="item-head">
-        <div>
-          <h3>${escapeHtml(turnout.label)}</h3>
-          <div class="meta">Turnout ${turnout.id}</div>
-        </div>
-        <span class="status-pill ${status}">${status}</span>
+      <div class="row-main">
+        <h3>${escapeHtml(turnout.label)}</h3>
+        <div class="meta">Turnout ${turnout.id}</div>
       </div>
-      <div class="button-row">
+      <span class="status-pill ${status}">${status}</span>
+      <div class="segmented-control">
         <button class="button ghost" data-turnout="${turnout.id}" data-state="closed">Close</button>
         <button class="button ghost" data-turnout="${turnout.id}" data-state="thrown">Throw</button>
       </div>
@@ -129,19 +126,17 @@ function renderTrains() {
     const direction = live?.direction ?? "forward";
     const f0 = Boolean(live?.functions?.[0]);
     const item = document.createElement("article");
-    item.className = "item";
+    item.className = "train-row";
     item.innerHTML = `
-      <div class="item-head">
-        <div>
-          <h3>${escapeHtml(train.label)}</h3>
-          <div class="meta">DCC address ${train.address}</div>
-        </div>
-        <span class="status-pill ${speed > 0 ? "running" : "stopped"}">${speed > 0 ? `${speed}` : "stopped"}</span>
+      <div class="row-main">
+        <h3>${escapeHtml(train.label)}</h3>
+        <div class="meta">DCC address ${train.address}</div>
       </div>
+      <span class="speed-readout ${speed > 0 ? "running" : "stopped"}">${speed}</span>
       <div class="train-controls">
         <div class="field">
           <label>Direction</label>
-          <div class="button-row">
+          <div class="segmented-control">
             <button class="button ghost direction-button ${direction === "forward" ? "active" : ""}" data-direction="forward">Forward</button>
             <button class="button ghost direction-button ${direction === "reverse" ? "active" : ""}" data-direction="reverse">Reverse</button>
           </div>
@@ -153,7 +148,7 @@ function renderTrains() {
             <input type="number" min="0" max="127" value="${speed}">
           </div>
         </div>
-        <div class="button-row">
+        <div class="button-row train-actions">
           <button class="button secondary apply-button">Apply</button>
           <button class="button warning stop-button">Stop</button>
           <button class="button ghost f0-button ${f0 ? "active" : ""}">F0</button>

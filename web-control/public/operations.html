@@ -7,24 +7,25 @@
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <header class="topbar">
-      <div>
-        <h1>Railroad Workbench</h1>
+    <header class="app-header">
+      <div class="brand-block">
+        <div class="eyebrow">CSB1 Web Console</div>
+        <h1>Programming</h1>
         <p id="connectionSummary">Connecting...</p>
       </div>
       <nav class="nav-tabs" aria-label="Railroad pages">
         <a href="/">Control</a>
         <a class="active" href="/operations.html">Programming</a>
       </nav>
-      <div class="topbar-actions">
+      <div class="header-actions">
         <button id="refreshButton" class="button secondary">Refresh</button>
         <button id="powerOnButton" class="button secondary">Power On</button>
         <button id="powerOffButton" class="button secondary">Power Off</button>
       </div>
     </header>
 
-    <main class="tools-layout">
-      <section class="panel command-panel wide-panel">
+    <main class="workbench-layout">
+      <section class="surface command-panel wide-panel">
         <div class="panel-heading">
           <h2>Direct Command</h2>
           <span id="commandStatus" class="status-pill unknown">Ready</span>
@@ -40,7 +41,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="surface">
         <div class="panel-heading">
           <h2>Roster</h2>
         </div>
@@ -82,7 +83,7 @@
         <div id="rosterTable" class="data-table"></div>
       </section>
 
-      <section class="panel">
+      <section class="surface">
         <div class="panel-heading">
           <h2>DecoderPro</h2>
         </div>
@@ -164,7 +165,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="surface">
         <div class="panel-heading">
           <h2>PanelPro Tables</h2>
         </div>
@@ -274,7 +275,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="surface">
         <div class="panel-heading">
           <h2>Automation</h2>
         </div>
@@ -295,21 +296,7 @@
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-heading">
-          <h2>JMRI Map</h2>
-        </div>
-        <div class="mapping-grid">
-          <div><strong>Roster Table</strong><span>Local entries and <code>&lt;JR&gt;</code></span></div>
-          <div><strong>Basic Programmer</strong><span><code>&lt;R&gt;</code>, <code>&lt;W address&gt;</code>, CV1</span></div>
-          <div><strong>Comprehensive Programmer</strong><span>CV read/write forms and raw command</span></div>
-          <div><strong>Turnout Table</strong><span><code>&lt;T id state&gt;</code>, <code>&lt;T id DCC linearAddr&gt;</code></span></div>
-          <div><strong>Sensor Table</strong><span><code>&lt;S id vpin pullup&gt;</code>, <code>&lt;Q&gt;</code></span></div>
-          <div><strong>JSON Console</strong><span>Direct DCC-EX command console</span></div>
-        </div>
-      </section>
-
-      <section class="panel messages-panel">
+      <section class="surface messages-panel">
         <div class="panel-heading">
           <h2>Command Log</h2>
         </div>

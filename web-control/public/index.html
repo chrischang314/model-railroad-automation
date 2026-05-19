@@ -7,29 +7,30 @@
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
-    <header class="topbar">
-      <div>
-        <h1>Model Railroad Control</h1>
+    <header class="app-header">
+      <div class="brand-block">
+        <div class="eyebrow">CSB1 Web Console</div>
+        <h1>Control</h1>
         <p id="connectionSummary">Connecting...</p>
       </div>
       <nav class="nav-tabs" aria-label="Railroad pages">
         <a class="active" href="/">Control</a>
         <a href="/operations.html">Programming</a>
       </nav>
-      <div class="topbar-actions">
+      <div class="header-actions">
         <button id="refreshButton" class="button secondary">Refresh</button>
         <button id="powerOnButton" class="button secondary">Power On</button>
         <button id="powerOffButton" class="button secondary">Power Off</button>
       </div>
     </header>
 
-    <main class="layout">
-      <section class="panel command-panel">
+    <main class="control-layout">
+      <section class="surface command-panel">
         <div class="panel-heading">
           <h2>Automation</h2>
           <span id="automationState" class="status-pill unknown">Unknown</span>
         </div>
-        <div class="command-row">
+        <div class="command-strip">
           <button id="startButton" class="button primary">Start Shuttle</button>
           <button id="stopButton" class="button warning">Graceful Stop</button>
           <button id="emergencyButton" class="button danger">Emergency Stop</button>
@@ -40,28 +41,28 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="surface">
         <div class="panel-heading">
           <h2>Sensors</h2>
         </div>
         <div id="sensorGrid" class="sensor-grid"></div>
       </section>
 
-      <section class="panel">
+      <section class="surface">
         <div class="panel-heading">
           <h2>Turnouts</h2>
         </div>
         <div id="turnoutList" class="stack"></div>
       </section>
 
-      <section class="panel trains-panel">
+      <section class="surface trains-panel">
         <div class="panel-heading">
           <h2>Trains</h2>
         </div>
         <div id="trainList" class="stack"></div>
       </section>
 
-      <section class="panel messages-panel">
+      <section class="surface messages-panel">
         <div class="panel-heading">
           <h2>Command Log</h2>
         </div>
