@@ -1,7 +1,7 @@
 # Model Railroad Web-Control Handoff
 
 Last updated: 2026-05-20
-Branch: `implementer-a-2026-05-20`
+Current branch: `main`
 
 ## Current Change
 
@@ -37,6 +37,18 @@ command for each configured cab.
 
 The Kubernetes app is defined in
 `C:\Users\chris\Projects\container-orchestrator\apps\model-railroad-automation\values.yaml`
-and currently tracks the `main` image tag. This implementer branch has not been
-deployed; the judge should build/publish the selected implementation and deploy
-through `container-orchestrator` after choosing the winning branch.
+and currently tracks the `main` image tag.
+
+The All Stop change was merged to `main`, published by the GitHub Actions
+`build-and-push` workflow, and deployed on 2026-05-20 with:
+
+```powershell
+& "C:\Users\chris\.codex\tools\helm-v4.2.0\helm.exe" lint charts\app -f apps\model-railroad-automation\values.yaml
+& "C:\Users\chris\.codex\tools\helm-v4.2.0\helm.exe" upgrade --install model-railroad-automation charts/app -f apps/model-railroad-automation/values.yaml --namespace default --create-namespace --wait --timeout 5m
+kubectl rollout restart deployment/model-railroad-automation-web-control -n default
+kubectl rollout status deployment/model-railroad-automation-web-control -n default --timeout=180s
+```
+
+The live LAN page at `http://modelrailroadautomation.lan/` includes the All Stop
+button, and `POST /api/trains/stop-all` was smoke-tested while the railroad was
+idle.
