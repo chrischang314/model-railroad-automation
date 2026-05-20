@@ -9,7 +9,10 @@ bugfix or doc update).
 
 ## [Unreleased]
 
-- (nothing pending; see open GitHub issues for tracked work)
+### Added
+
+- Added a web-control All Stop action that sends speed-zero throttle commands
+  to every configured cab without killing EXRAIL.
 
 ## [3.16.0] - 2026-05-13
 

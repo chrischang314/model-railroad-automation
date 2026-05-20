@@ -33,6 +33,7 @@ function wireGlobalButtons() {
   document.querySelector("#refreshButton").addEventListener("click", () => post("/api/refresh"));
   document.querySelector("#startButton").addEventListener("click", () => post("/api/automation/start"));
   document.querySelector("#stopButton").addEventListener("click", () => post("/api/automation/stop"));
+  document.querySelector("#stopAllButton").addEventListener("click", () => post("/api/trains/stop-all"));
   document.querySelector("#emergencyButton").addEventListener("click", () => post("/api/emergency-stop"));
   document.querySelector("#powerOnButton").addEventListener("click", () => post("/api/power", { state: "on" }));
   document.querySelector("#powerOffButton").addEventListener("click", () => post("/api/power", { state: "off" }));

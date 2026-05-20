@@ -32,6 +32,8 @@ jobs:
           node --check src/server.js
           node --check src/dcc-client.js
           node --check src/layout.js
+          node --check src/railroad-commands.js
+          node --test
 
           DCCEX_MOCK=true PORT=3010 node src/server.js &
           server_pid=$!

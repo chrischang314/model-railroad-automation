@@ -3,6 +3,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { DccExClient } = require("./dcc-client");
 const { layout } = require("./layout");
+const { buildStopAllTrainCommands } = require("./railroad-commands");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -195,6 +196,19 @@ async function handleApi(request, response) {
       return sendJson(response, 400, { error: "state must be boolean" });
     }
     return sendCommand(response, `<F ${train.address} ${fn} ${body.state ? 1 : 0}>`);
+  }
+
+  if (request.method === "POST" && pathname === "/api/trains/stop-all") {
+    try {
+      const commands = buildStopAllTrainCommands(layout, dcc.getState());
+      const results = [];
+      for (const command of commands) {
+        results.push(await dcc.send(command));
+      }
+      return sendJson(response, 200, { ok: true, commands, results });
+    } catch (error) {
+      return sendJson(response, 503, { error: error.message });
+    }
   }
 
   if (request.method === "POST" && pathname === "/api/refresh") {

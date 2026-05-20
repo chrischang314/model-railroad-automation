@@ -67,6 +67,8 @@ Useful environment variables:
 - Track power: `<1>` / `<0>`
 - Turnouts: `<T id 1>` for thrown, `<T id 0>` for closed
 - Trains: `<t cab speed direction>`
+- All Stop: sends `<t cab 0 direction>` for every configured cab, preserving
+  the current known direction bit for each train.
 - F0/headlights: `<F cab 0 state>`
 - Sensor status: `<Q>` plus live `<Q id>` / `<q id>` broadcasts
 - Sensor setup on backend connect: `<S 1001 33 0>` and `<S 1002 26 0>`
