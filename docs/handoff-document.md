@@ -302,8 +302,8 @@ Work layer by layer:
 
 | File | Purpose |
 | --- | --- |
-| `dcc-ex/myAutomation.h` | Current stable EXRAIL script |
-| `dcc-ex/myAutomation-backup.h` | Synced stable backup copy |
+| `dcc-ex/myAutomation.h` | Current v3.17.0 route-lock candidate EXRAIL script |
+| `dcc-ex/myAutomation-backup.h` | Last physically confirmed stable backup copy |
 | `dcc-ex/sensor-setup-commands.txt` | Physical sensor declarations to resend after flash |
 | `docs/layout-diagram.md` | Current layout and behavior diagram |
 | `docs/lessons-learned.md` | Condensed rules and pitfalls |

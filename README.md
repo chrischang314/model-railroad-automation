@@ -7,7 +7,8 @@
 Sensor-driven model railroad automation built on a DCC-EX EX-CSB1 command
 station with Azatrax RIR4 beam-break sensors bridged through an Arduino Uno.
 
-Current stable automation: `dcc-ex/myAutomation.h` v3.16.0-STABLE.
+Current automation: `dcc-ex/myAutomation.h` v3.17.0 route-lock candidate.
+Last physically confirmed stable baseline: v3.16.0-STABLE.
 
 ## Quick Start
 
