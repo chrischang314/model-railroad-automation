@@ -13,8 +13,15 @@ test("control page includes action status feedback assets", async () => {
   ]);
 
   assert.match(html, /id="actionStatus"/);
+  assert.match(html, /id="actionHistory"/);
   assert.match(html, /role="status"/);
+  assert.match(html, /aria-label="Recent control actions"/);
+  assert.match(script, /MAX_ACTION_HISTORY = 6/);
+  assert.match(script, /function beginAction/);
+  assert.match(script, /function completeAction/);
+  assert.match(script, /function renderActionStatus/);
   assert.match(script, /function setActionStatus/);
   assert.match(script, /function actionSuccessMessage/);
   assert.match(styles, /\.action-status/);
+  assert.match(styles, /\.action-history/);
 });

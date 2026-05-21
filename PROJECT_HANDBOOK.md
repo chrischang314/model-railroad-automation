@@ -15,8 +15,8 @@ recent command messages. In mock mode, the same state model is updated locally
 so UI and API changes can be tested without hardware.
 
 The main control page reports each write action through a compact status strip
-so operators can see whether a command is still sending, succeeded, or failed
-without scanning the command log.
+and bounded timestamped history so operators can see whether a command is still
+sending, succeeded, or failed without scanning the command log.
 
 ## Operator Safety Model
 

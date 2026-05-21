@@ -5,10 +5,11 @@ Current branch: `projects-lan-implementer-b-2026-05-21-railroad-action-status`
 
 ## Current Change
 
-Implementer B adds a control-page action status strip. Every main control write
-action now reports sending, success, or failure through the `#actionStatus`
-`aria-live` region and temporarily disables the clicked button while the request
-is in flight. All Stop behavior from `main` is unchanged.
+Implementer B adds control-page action feedback. Every main control write action
+now reports sending, success, or failure through the `#actionStatus` `aria-live`
+region, records a bounded timestamped entry in `#actionHistory`, and temporarily
+disables the clicked button while the request is in flight. All Stop behavior
+from `main` is unchanged.
 
 ## Verification
 
@@ -27,8 +28,8 @@ $env:PORT = "3000"
 ```
 
 Then click Refresh, Power On, All Stop, a turnout action, and a train stop.
-Confirm the status strip changes from sending to a success message and failures
-show the red error state.
+Confirm the status strip changes from sending to a success message, the recent
+action history stays bounded, and failures show the red error state.
 
 ## Deployment Notes
 
