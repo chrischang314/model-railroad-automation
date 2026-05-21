@@ -1,18 +1,14 @@
 # Model Railroad Web-Control Handoff
 
-Last updated: 2026-05-20
-Current branch: `main`
+Last updated: 2026-05-21
+Current branch: `projects-lan-implementer-b-2026-05-21-railroad-action-status`
 
 ## Current Change
 
-The control page now includes an All Stop button. It calls
-`POST /api/trains/stop-all`, which sends `<t cab 0 direction>` for every train
-listed in `web-control/src/layout.js`. The helper preserves the current known
-direction bit so a soft stop does not accidentally flip train direction state.
-
-This is intentionally different from Emergency Stop. All Stop stops configured
-locomotives through throttle commands while leaving EXRAIL running; Emergency
-Stop still sends `</KILL ALL>` and `<!>`.
+Implementer B adds a control-page action status strip. Every main control write
+action now reports sending, success, or failure through the `#actionStatus`
+`aria-live` region and temporarily disables the clicked button while the request
+is in flight. All Stop behavior from `main` is unchanged.
 
 ## Verification
 
@@ -30,8 +26,9 @@ $env:PORT = "3000"
 & "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" src/server.js
 ```
 
-Then click All Stop and confirm the command log shows one speed-zero throttle
-command for each configured cab.
+Then click Refresh, Power On, All Stop, a turnout action, and a train stop.
+Confirm the status strip changes from sending to a success message and failures
+show the red error state.
 
 ## Deployment Notes
 

@@ -72,6 +72,9 @@ Useful environment variables:
 - F0/headlights: `<F cab 0 state>`
 - Sensor status: `<Q>` plus live `<Q id>` / `<q id>` broadcasts
 - Sensor setup on backend connect: `<S 1001 33 0>` and `<S 1002 26 0>`
+- Control action feedback: the main control panel reports when a write action is
+  sending, succeeds, or fails without requiring the operator to read the full
+  command log.
 
 ## Programming Workbench
 
