@@ -58,6 +58,7 @@ Useful environment variables:
 | `DCCEX_MOCK` | `false` | Set `true` for UI testing without hardware |
 | `CONTROL_TOKEN` | empty | Optional bearer token for write/control requests |
 | `ROSTER_FILE` | `web-control/data/roster.json` | Local website roster metadata store |
+| `TELEMETRY_STALE_MS` | `15000` | Command-station message age before UI and `/health` mark telemetry stale |
 
 ## Implemented Controls
 
@@ -72,6 +73,13 @@ Useful environment variables:
 - F0/headlights: `<F cab 0 state>`
 - Sensor status: `<Q>` plus live `<Q id>` / `<q id>` broadcasts
 - Sensor setup on backend connect: `<S 1001 33 0>` and `<S 1002 26 0>`
+- Telemetry freshness: the control and programming headers show the age of the
+  last command-station message and turn amber when it exceeds
+  `TELEMETRY_STALE_MS`.
+- Health details: `/health` keeps HTTP 200 for Kubernetes probes, but its JSON
+  `ok` field turns false when the command station is disconnected or telemetry
+  is stale. It includes active sensors, moving trains, power, automation, and
+  telemetry age data for LAN dashboards.
 
 ## Programming Workbench
 

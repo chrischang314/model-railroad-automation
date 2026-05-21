@@ -27,6 +27,7 @@ async function init() {
   state = await apiGet("/api/state");
   render();
   connectEvents();
+  setInterval(render, 5000);
 }
 
 function wireGlobalButtons() {
@@ -56,8 +57,11 @@ function render() {
   const connection = state.connection;
   const power = state.power.state;
   const target = connection.mock ? "mock command station" : `${connection.host}:${connection.port}`;
-  connectionSummary.textContent = `${connection.status} to ${target} | track power ${power}`;
-  connectionSummary.className = connection.connected ? "" : "connection-error";
+  const telemetry = getTelemetrySummary(connection);
+  connectionSummary.textContent = `${connection.status} to ${target} | track power ${power} | telemetry ${telemetry.label}`;
+  connectionSummary.className = connection.connected
+    ? (telemetry.stale ? "connection-warning" : "")
+    : "connection-error";
 
   automationState.textContent = state.automation.stopRequested
     ? "Stopping"
@@ -226,6 +230,21 @@ async function apiGet(path) {
 function authHeaders() {
   if (!authRequired) return {};
   return { Authorization: `Bearer ${tokenInput.value}` };
+}
+
+function getTelemetrySummary(connection) {
+  if (connection.mock) return { label: "mock", stale: false };
+  if (!connection.lastMessageAt) return { label: "no data", stale: Boolean(connection.connected) };
+
+  const lastMessageMs = Date.parse(connection.lastMessageAt);
+  if (!Number.isFinite(lastMessageMs)) return { label: "no data", stale: Boolean(connection.connected) };
+
+  const ageSeconds = Math.max(0, Math.floor((Date.now() - lastMessageMs) / 1000));
+  const staleAfterMs = layoutConfig?.telemetry?.staleAfterMs || 15000;
+  return {
+    label: `${ageSeconds}s ago`,
+    stale: Boolean(connection.connected) && ageSeconds * 1000 > staleAfterMs
+  };
 }
 
 function escapeHtml(value) {

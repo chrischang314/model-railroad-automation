@@ -4,6 +4,7 @@ const path = require("node:path");
 const { DccExClient } = require("./dcc-client");
 const { layout } = require("./layout");
 const { buildStopAllTrainCommands } = require("./railroad-commands");
+const { DEFAULT_TELEMETRY_STALE_MS, buildHealthPayload } = require("./telemetry-health");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -13,6 +14,11 @@ const DCCEX_MOCK = String(process.env.DCCEX_MOCK || "").toLowerCase() === "true"
 const CONTROL_TOKEN = process.env.CONTROL_TOKEN || "";
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const ROSTER_FILE = process.env.ROSTER_FILE || path.join(__dirname, "..", "data", "roster.json");
+const configuredTelemetryStaleMs = Number(process.env.TELEMETRY_STALE_MS || DEFAULT_TELEMETRY_STALE_MS);
+const TELEMETRY_STALE_MS =
+  Number.isFinite(configuredTelemetryStaleMs) && configuredTelemetryStaleMs > 0
+    ? configuredTelemetryStaleMs
+    : DEFAULT_TELEMETRY_STALE_MS;
 
 const dcc = new DccExClient({
   host: DCCEX_HOST,
@@ -31,12 +37,9 @@ dcc.start();
 const server = http.createServer(async (request, response) => {
   try {
     if (request.url === "/health" && request.method === "GET") {
-      const state = dcc.getState();
-      return sendJson(response, 200, {
-        ok: true,
-        service: "model-railroad-web-control",
-        connection: state.connection
-      });
+      return sendJson(response, 200, buildHealthPayload(dcc.getState(), {
+        staleAfterMs: TELEMETRY_STALE_MS
+      }));
     }
 
     if (request.url === "/api/events" && request.method === "GET") {
@@ -73,7 +76,8 @@ async function handleApi(request, response) {
     return sendJson(response, 200, {
       layout,
       authRequired: Boolean(CONTROL_TOKEN),
-      dccTarget: { host: DCCEX_HOST, port: DCCEX_PORT, mock: DCCEX_MOCK }
+      dccTarget: { host: DCCEX_HOST, port: DCCEX_PORT, mock: DCCEX_MOCK },
+      telemetry: { staleAfterMs: TELEMETRY_STALE_MS }
     });
   }
 

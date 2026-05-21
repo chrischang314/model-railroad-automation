@@ -1,14 +1,30 @@
 # Model Railroad Web-Control Handoff
 
-Last updated: 2026-05-20
-Current branch: `main`
+Last updated: 2026-05-21
+Current branch: `projects-lan-implementer-c-2026-05-21-telemetry-health`
 
 ## Current Change
 
-The control page now includes an All Stop button. It calls
+Implementer C selected the small projects.lan feature "telemetry staleness
+visibility" because stale command-station data is high-value for daily LAN
+health checks and safe railroad operation.
+
+This branch adds a reliability-oriented implementation:
+
+- `web-control/src/telemetry-health.js` builds a tested health payload with
+  telemetry age, stale status, moving trains, active sensors, power, and
+  automation state.
+- `/health` still returns HTTP 200 for Kubernetes probe stability, but its JSON
+  `ok` field now turns false when the command station is disconnected or
+  telemetry is stale.
+- `/api/config` exposes `TELEMETRY_STALE_MS`, defaulting to 15 seconds.
+- The Control and Programming page headers show the last command-station
+  message age and turn amber when telemetry is stale.
+
+The existing All Stop behavior remains unchanged. It calls
 `POST /api/trains/stop-all`, which sends `<t cab 0 direction>` for every train
-listed in `web-control/src/layout.js`. The helper preserves the current known
-direction bit so a soft stop does not accidentally flip train direction state.
+listed in `web-control/src/layout.js` while preserving each current direction
+bit.
 
 This is intentionally different from Emergency Stop. All Stop stops configured
 locomotives through throttle commands while leaving EXRAIL running; Emergency
@@ -22,7 +38,8 @@ Run the focused tests from `web-control/`:
 & "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" --test
 ```
 
-For browser verification, run mock mode and open the control page:
+For browser verification, run mock mode and open the control and programming
+pages:
 
 ```powershell
 $env:DCCEX_MOCK = "true"
@@ -30,8 +47,12 @@ $env:PORT = "3000"
 & "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" src/server.js
 ```
 
-Then click All Stop and confirm the command log shows one speed-zero throttle
-command for each configured cab.
+Confirm `/health` includes `telemetry`, `movingTrains`, and `activeSensors`.
+On the pages, confirm the header includes `telemetry mock` in mock mode. To
+exercise stale styling locally, run without mock against an unreachable host and
+confirm the header shows a connection error; against real hardware, wait longer
+than `TELEMETRY_STALE_MS` after the last command-station message to see the
+amber stale state.
 
 ## Deployment Notes
 
@@ -52,3 +73,9 @@ kubectl rollout status deployment/model-railroad-automation-web-control -n defau
 The live LAN page at `http://modelrailroadautomation.lan/` includes the All Stop
 button, and `POST /api/trains/stop-all` was smoke-tested while the railroad was
 idle.
+
+Implementer C did not push, merge, publish, or deploy this branch because the
+feature pipeline expects a judge to compare A/B/C implementations first. After
+judge selection, publish the winning branch to `main`, wait for the GHCR
+`web-control:main` image, then redeploy through `container-orchestrator` and
+verify `http://modelrailroadautomation.lan/health`.
