@@ -13,6 +13,8 @@ bugfix or doc update).
 
 - Added a web-control All Stop action that sends speed-zero throttle commands
   to every configured cab without killing EXRAIL.
+- Added web-control telemetry freshness indicators so stale or missing sensor,
+  turnout, and train updates are visible before an operator trusts the panel.
 
 ## [3.16.0] - 2026-05-13
 

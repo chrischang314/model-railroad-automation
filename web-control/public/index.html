@@ -28,7 +28,10 @@
       <section class="surface command-panel">
         <div class="panel-heading">
           <h2>Automation</h2>
-          <span id="automationState" class="status-pill unknown">Unknown</span>
+          <div class="panel-pills">
+            <span id="telemetrySummary" class="status-pill unknown">Telemetry</span>
+            <span id="automationState" class="status-pill unknown">Unknown</span>
+          </div>
         </div>
         <div class="command-strip">
           <button id="startButton" class="button primary">Start Shuttle</button>
@@ -71,6 +74,7 @@
       </section>
     </main>
 
+    <script src="/telemetry-health.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

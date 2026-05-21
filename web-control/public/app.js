@@ -6,6 +6,7 @@ const tokenInput = document.querySelector("#tokenInput");
 const authPanel = document.querySelector("#authPanel");
 const connectionSummary = document.querySelector("#connectionSummary");
 const automationState = document.querySelector("#automationState");
+const telemetrySummary = document.querySelector("#telemetrySummary");
 const sensorGrid = document.querySelector("#sensorGrid");
 const turnoutList = document.querySelector("#turnoutList");
 const trainList = document.querySelector("#trainList");
@@ -52,6 +53,7 @@ function connectEvents() {
 
 function render() {
   if (!state || !layoutConfig) return;
+  const now = Date.now();
 
   const connection = state.connection;
   const power = state.power.state;
@@ -68,44 +70,62 @@ function render() {
     state.automation.stopRequested ? "alert" : state.automation.running ? "running" : "stopped"
   }`;
 
-  renderSensors();
-  renderTurnouts();
-  renderTrains();
+  renderTelemetrySummary(now);
+  renderSensors(now);
+  renderTurnouts(now);
+  renderTrains(now);
   renderMessages();
 }
 
-function renderSensors() {
+function renderTelemetrySummary(now) {
+  const summary = window.TelemetryHealth.buildTelemetrySummary(state, layoutConfig.layout, now);
+  telemetrySummary.textContent = summary.label;
+  telemetrySummary.className = `status-pill ${summary.status}`;
+  telemetrySummary.title = summary.details.join("\n");
+}
+
+function renderSensors(now) {
   sensorGrid.innerHTML = "";
   for (const sensor of layoutConfig.layout.sensors) {
     const live = state.sensors[String(sensor.id)];
     const status = live?.active === true ? "active" : live?.active === false ? "inactive" : "unknown";
+    const telemetry = window.TelemetryHealth.classifyTimestamp(live?.lastUpdated, now);
     const item = document.createElement("article");
-    item.className = "sensor-tile";
+    item.className = `sensor-tile telemetry-${telemetry.status}`;
     item.innerHTML = `
       <div class="status-dot ${status}"></div>
       <div>
         <h3>${escapeHtml(sensor.label)}</h3>
         <div class="meta">Sensor ${sensor.id} / vpin ${sensor.vpin}</div>
+        <div class="telemetry-note ${telemetry.status}">${escapeHtml(telemetry.label)}</div>
       </div>
-      <span class="status-pill ${status}">${status}</span>
+      <div class="tile-pills">
+        <span class="status-pill ${status}">${status}</span>
+        <span class="status-pill ${telemetry.pillClass}">${telemetry.status}</span>
+      </div>
     `;
     sensorGrid.append(item);
   }
 }
 
-function renderTurnouts() {
+function renderTurnouts(now) {
   turnoutList.innerHTML = "";
   for (const turnout of layoutConfig.layout.turnouts) {
     const live = state.turnouts[String(turnout.id)];
     const status = live?.state || "unknown";
+    const telemetry = window.TelemetryHealth.classifyTimestamp(live?.lastUpdated, now);
     const item = document.createElement("article");
-    item.className = "control-row turnout-row";
+    item.className = `control-row turnout-row telemetry-${telemetry.status}`;
     item.innerHTML = `
       <div class="row-main">
         <h3>${escapeHtml(turnout.label)}</h3>
         <div class="meta">Turnout ${turnout.id}</div>
+        <div class="telemetry-note ${telemetry.status}">${escapeHtml(telemetry.label)}</div>
       </div>
-      <span class="status-pill ${status}">${status}</span>
+      <div class="tile-pills">
+        <span class="status-pill ${status}">${status}</span>
+        <span class="status-pill ${telemetry.pillClass}">${telemetry.status}</span>
+      </div>
       <div class="segmented-control">
         <button class="button ghost" data-turnout="${turnout.id}" data-state="closed">Close</button>
         <button class="button ghost" data-turnout="${turnout.id}" data-state="thrown">Throw</button>
@@ -119,21 +139,26 @@ function renderTurnouts() {
   }
 }
 
-function renderTrains() {
+function renderTrains(now) {
   trainList.innerHTML = "";
   for (const train of layoutConfig.layout.trains) {
     const live = state.trains[String(train.address)];
     const speed = live?.speed ?? 0;
     const direction = live?.direction ?? "forward";
     const f0 = Boolean(live?.functions?.[0]);
+    const telemetry = window.TelemetryHealth.classifyTimestamp(live?.lastUpdated, now);
     const item = document.createElement("article");
-    item.className = "train-row";
+    item.className = `train-row telemetry-${telemetry.status}`;
     item.innerHTML = `
       <div class="row-main">
         <h3>${escapeHtml(train.label)}</h3>
         <div class="meta">DCC address ${train.address}</div>
+        <div class="telemetry-note ${telemetry.status}">${escapeHtml(telemetry.label)}</div>
       </div>
-      <span class="speed-readout ${speed > 0 ? "running" : "stopped"}">${speed}</span>
+      <div class="train-status-stack">
+        <span class="speed-readout ${speed > 0 ? "running" : "stopped"}">${speed}</span>
+        <span class="status-pill ${telemetry.pillClass}">${telemetry.status}</span>
+      </div>
       <div class="train-controls">
         <div class="field">
           <label>Direction</label>

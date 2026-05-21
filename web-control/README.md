@@ -72,6 +72,9 @@ Useful environment variables:
 - F0/headlights: `<F cab 0 state>`
 - Sensor status: `<Q>` plus live `<Q id>` / `<q id>` broadcasts
 - Sensor setup on backend connect: `<S 1001 33 0>` and `<S 1002 26 0>`
+- Telemetry freshness: the control page marks stale or missing sensor, turnout,
+  and train timestamps after five minutes so old state is not mistaken for live
+  state.
 
 ## Programming Workbench
 

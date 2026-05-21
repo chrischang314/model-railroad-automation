@@ -1,9 +1,14 @@
 # Model Railroad Web-Control Handoff
 
-Last updated: 2026-05-20
-Current branch: `main`
+Last updated: 2026-05-21
+Current branch: `projects-lan-implementer-b-2026-05-21-telemetry-staleness`
 
 ## Current Change
+
+This implementer-B candidate adds read-only telemetry freshness warnings to the
+web-control page. Sensor, turnout, and train rows now show when the last update
+arrived, and the Automation header summarizes stale or missing telemetry after
+five minutes. It does not change any DCC-EX command path.
 
 The control page now includes an All Stop button. It calls
 `POST /api/trains/stop-all`, which sends `<t cab 0 direction>` for every train
@@ -20,6 +25,12 @@ Run the focused tests from `web-control/`:
 
 ```powershell
 & "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" --test
+```
+
+If local Node is unavailable, the same tests pass with Dockerized Node:
+
+```powershell
+docker run --rm -v "C:\Users\chris\Projects\model-railroad-implementer-b-2026-05-21\web-control:/app" -w /app node:24-alpine npm test
 ```
 
 For browser verification, run mock mode and open the control page:

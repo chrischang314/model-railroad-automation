@@ -139,7 +139,7 @@ It can connect directly to the EX-CSB1 on TCP port 2560, or to JMRI's DCC++
 Over TCP bridge. The first UI includes shuttle start/stop, emergency stop,
 track power, turnout control, train throttle controls, F0/headlight toggles,
 an All Stop button that sends speed-zero commands to every configured cab,
-sensor status, and a command log.
+sensor status, telemetry freshness warnings, and a command log.
 
 ```bash
 docker compose up --build

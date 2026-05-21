@@ -14,6 +14,10 @@ snapshot for connection status, sensors, turnouts, train speeds, direction, and
 recent command messages. In mock mode, the same state model is updated locally
 so UI and API changes can be tested without hardware.
 
+The browser treats missing or more-than-five-minute-old sensor, turnout, and
+train timestamps as stale telemetry. Those warnings are read-only; they tell the
+operator to refresh or verify the command station before trusting old state.
+
 ## Operator Safety Model
 
 Use the least disruptive stop that fits the situation:

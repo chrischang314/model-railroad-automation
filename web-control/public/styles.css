@@ -177,6 +177,16 @@ button {
   line-height: 1.2;
 }
 
+.panel-pills,
+.tile-pills,
+.train-status-stack {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .button {
   min-height: 36px;
   border: 1px solid transparent;
@@ -263,7 +273,8 @@ button {
 .status-pill.active,
 .status-pill.thrown,
 .status-pill.on,
-.status-pill.running {
+.status-pill.running,
+.status-pill.fresh {
   background: var(--green-soft);
   color: var(--green);
   border-color: #bde0c9;
@@ -290,6 +301,23 @@ button {
   border-color: #efb7b1;
 }
 
+.telemetry-note {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.telemetry-note.stale {
+  color: var(--amber);
+  font-weight: 800;
+}
+
+.telemetry-note.missing {
+  color: var(--red);
+  font-weight: 800;
+}
+
 .sensor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -306,6 +334,16 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-subtle);
+}
+
+.telemetry-stale {
+  border-color: #efcc99;
+  background: var(--amber-soft);
+}
+
+.telemetry-missing {
+  border-color: #efb7b1;
+  background: var(--red-soft);
 }
 
 .status-dot {
@@ -379,7 +417,7 @@ h3 {
 }
 
 .train-row {
-  grid-template-columns: minmax(220px, 0.8fr) 62px minmax(520px, 1.8fr);
+  grid-template-columns: minmax(220px, 0.8fr) 88px minmax(520px, 1.8fr);
 }
 
 .speed-readout {
@@ -400,6 +438,10 @@ h3 {
   color: var(--green);
   background: var(--green-soft);
   border-color: #bde0c9;
+}
+
+.train-status-stack {
+  justify-content: center;
 }
 
 .train-controls {
@@ -649,6 +691,12 @@ code {
   .speed-readout {
     width: 100%;
     height: 36px;
+  }
+
+  .panel-pills,
+  .tile-pills,
+  .train-status-stack {
+    justify-content: flex-start;
   }
 }
 
