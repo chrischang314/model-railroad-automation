@@ -13,6 +13,8 @@ bugfix or doc update).
 
 - Added a web-control All Stop action that sends speed-zero throttle commands
   to every configured cab without killing EXRAIL.
+- Added a web-control telemetry freshness indicator for the last CSB1 message
+  in the page headers and `/health` response.
 
 ## [3.16.0] - 2026-05-13
 

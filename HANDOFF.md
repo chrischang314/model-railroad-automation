@@ -1,9 +1,20 @@
 # Model Railroad Web-Control Handoff
 
-Last updated: 2026-05-20
-Current branch: `main`
+Last updated: 2026-05-21
+Current branch: `projects-lan-implementer-a-2026-05-21-telemetry-freshness`
 
 ## Current Change
+
+The implementer-A candidate branch adds a telemetry freshness indicator to the
+control and programming page headers. The shared helper treats recent CSB1
+messages as fresh, shows a waiting state before the first message, and turns
+stale/disconnected states into warning pills. `/health` now includes the same
+telemetry object for external checks.
+
+This branch intentionally does not merge or deploy itself; it is ready for the
+projects.lan feature judge to compare with the other implementer candidates.
+
+## Previous Change
 
 The control page now includes an All Stop button. It calls
 `POST /api/trains/stop-all`, which sends `<t cab 0 direction>` for every train
@@ -20,6 +31,15 @@ Run the focused tests from `web-control/`:
 
 ```powershell
 & "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" --test
+```
+
+For local API smoke verification:
+
+```powershell
+$env:DCCEX_MOCK = "true"
+$env:PORT = "3000"
+& "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" src/server.js
+curl.exe -sS http://127.0.0.1:3000/health
 ```
 
 For browser verification, run mock mode and open the control page:

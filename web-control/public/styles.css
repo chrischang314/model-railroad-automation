@@ -84,6 +84,17 @@ button {
   font-size: 13px;
 }
 
+.telemetry-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .connection-error {
   color: var(--red) !important;
 }

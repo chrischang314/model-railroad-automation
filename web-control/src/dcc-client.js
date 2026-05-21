@@ -22,6 +22,7 @@ class DccExClient extends EventEmitter {
     if (this.mock) {
       this.state.connection.connected = true;
       this.state.connection.status = "mock";
+      this.state.connection.lastConnectedAt = new Date().toISOString();
       this.emitState();
       return;
     }

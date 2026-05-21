@@ -14,6 +14,11 @@ snapshot for connection status, sensors, turnouts, train speeds, direction, and
 recent command messages. In mock mode, the same state model is updated locally
 so UI and API changes can be tested without hardware.
 
+The browser header and `/health` endpoint also classify telemetry freshness.
+If the TCP socket is connected but the last CSB1 message is older than the
+freshness window, operators get a stale warning instead of a misleading plain
+connected state.
+
 ## Operator Safety Model
 
 Use the least disruptive stop that fits the situation:

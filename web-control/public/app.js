@@ -5,6 +5,8 @@ let authRequired = false;
 const tokenInput = document.querySelector("#tokenInput");
 const authPanel = document.querySelector("#authPanel");
 const connectionSummary = document.querySelector("#connectionSummary");
+const telemetryState = document.querySelector("#telemetryState");
+const telemetrySummary = document.querySelector("#telemetrySummary");
 const automationState = document.querySelector("#automationState");
 const sensorGrid = document.querySelector("#sensorGrid");
 const turnoutList = document.querySelector("#turnoutList");
@@ -26,6 +28,7 @@ async function init() {
   wireGlobalButtons();
   state = await apiGet("/api/state");
   render();
+  window.setInterval(renderTelemetryStatus, 1000);
   connectEvents();
 }
 
@@ -58,6 +61,7 @@ function render() {
   const target = connection.mock ? "mock command station" : `${connection.host}:${connection.port}`;
   connectionSummary.textContent = `${connection.status} to ${target} | track power ${power}`;
   connectionSummary.className = connection.connected ? "" : "connection-error";
+  renderTelemetryStatus();
 
   automationState.textContent = state.automation.stopRequested
     ? "Stopping"
@@ -72,6 +76,14 @@ function render() {
   renderTurnouts();
   renderTrains();
   renderMessages();
+}
+
+function renderTelemetryStatus() {
+  if (!state) return;
+  const telemetry = window.TelemetryStatus.buildTelemetryStatus(state.connection);
+  telemetryState.textContent = telemetry.label;
+  telemetryState.className = `status-pill ${window.TelemetryStatus.telemetryPillClass(telemetry)}`;
+  telemetrySummary.textContent = telemetry.detail;
 }
 
 function renderSensors() {

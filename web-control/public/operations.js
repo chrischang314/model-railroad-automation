@@ -6,6 +6,8 @@ let authRequired = false;
 const tokenInput = document.querySelector("#tokenInput");
 const authPanel = document.querySelector("#authPanel");
 const connectionSummary = document.querySelector("#connectionSummary");
+const telemetryState = document.querySelector("#telemetryState");
+const telemetrySummary = document.querySelector("#telemetrySummary");
 const commandStatus = document.querySelector("#commandStatus");
 const rawCommandInput = document.querySelector("#rawCommandInput");
 const messageLog = document.querySelector("#messageLog");
@@ -44,6 +46,7 @@ async function init() {
   state = await apiGet("/api/state");
   await loadRoster();
   render();
+  window.setInterval(renderTelemetryStatus, 1000);
   connectEvents();
 }
 
@@ -187,7 +190,16 @@ function render() {
   const target = connection.mock ? "mock command station" : `${connection.host}:${connection.port}`;
   connectionSummary.textContent = `${connection.status} to ${target} | track power ${state.power.state}`;
   connectionSummary.className = connection.connected ? "" : "connection-error";
+  renderTelemetryStatus();
   renderMessages();
+}
+
+function renderTelemetryStatus() {
+  if (!state) return;
+  const telemetry = window.TelemetryStatus.buildTelemetryStatus(state.connection);
+  telemetryState.textContent = telemetry.label;
+  telemetryState.className = `status-pill ${window.TelemetryStatus.telemetryPillClass(telemetry)}`;
+  telemetrySummary.textContent = telemetry.detail;
 }
 
 async function loadRoster() {

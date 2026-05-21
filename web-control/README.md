@@ -71,6 +71,8 @@ Useful environment variables:
   the current known direction bit for each train.
 - F0/headlights: `<F cab 0 state>`
 - Sensor status: `<Q>` plus live `<Q id>` / `<q id>` broadcasts
+- Telemetry freshness: the UI and `/health` report whether recent CSB1 messages
+  are still fresh or stale.
 - Sensor setup on backend connect: `<S 1001 33 0>` and `<S 1002 26 0>`
 
 ## Programming Workbench

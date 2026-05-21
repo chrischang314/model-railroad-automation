@@ -31,6 +31,7 @@ test("mock client applies all-stop commands without changing reverse direction",
   });
 
   dcc.start();
+  assert.ok(dcc.getState().connection.lastConnectedAt);
   await dcc.send("<t 2 45 0>");
   await dcc.send("<t 4 32 1>");
 

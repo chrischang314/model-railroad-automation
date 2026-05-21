@@ -4,6 +4,7 @@ const path = require("node:path");
 const { DccExClient } = require("./dcc-client");
 const { layout } = require("./layout");
 const { buildStopAllTrainCommands } = require("./railroad-commands");
+const { buildTelemetryStatus } = require("../public/telemetry-status");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -35,7 +36,8 @@ const server = http.createServer(async (request, response) => {
       return sendJson(response, 200, {
         ok: true,
         service: "model-railroad-web-control",
-        connection: state.connection
+        connection: state.connection,
+        telemetry: buildTelemetryStatus(state.connection)
       });
     }
 

@@ -12,6 +12,10 @@
         <div class="eyebrow">CSB1 Web Console</div>
         <h1>Control</h1>
         <p id="connectionSummary">Connecting...</p>
+        <div class="telemetry-strip" aria-live="polite">
+          <span id="telemetryState" class="status-pill unknown">Telemetry</span>
+          <span id="telemetrySummary">Waiting for CSB1 message</span>
+        </div>
       </div>
       <nav class="nav-tabs" aria-label="Railroad pages">
         <a class="active" href="/">Control</a>
@@ -71,6 +75,7 @@
       </section>
     </main>
 
+    <script src="/telemetry-status.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>
