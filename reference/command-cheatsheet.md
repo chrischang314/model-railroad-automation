@@ -107,7 +107,7 @@ These are written in the `myAutomation.h` source, not sent over the wire.
 | `AUTOSTART` | Run the following block automatically at boot. |
 | `POWERON` | Turn on track power. |
 | `THROW(n)` / `CLOSE(n)` | Throw or close turnout `n`. |
-| `FWD(speed)` / `REV(speed)` / `STOP` | Loco motion control. |
+| `FWD(speed)` / `REV(speed)` / `STOP` | Loco motion control. `STOP` is speed zero and leaves direction latched; use `FWD(0)` or `REV(0)` to set direction while parked. |
 | `AFTER(vpin)` | Wait until the vpin has triggered and cleared; used to consume departure beams. |
 | `AT(vpin)` | Block until vpin reads active. **Vpin, not sensor ID.** |
 | `AT(-vpin)` | Block until vpin reads inactive (inverted polarity). |

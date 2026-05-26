@@ -1,4 +1,4 @@
-// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.17.0)
+// myAutomation.h - Parallel two-task shuttle with graceful stop (v3.18.0)
 //
 // LAYOUT (see docs/layout-diagram.md):
 //
@@ -168,6 +168,12 @@
 //   its CLOSED/spur movement. The fix reasserts T2 CLOSED and waits before
 //   the middle task raises 2011, so Train 2 stays parked during the turnout
 //   settle period and shared-beam timing is not disturbed.
+//
+//   v3.18: pre-arm the next travel direction at speed 0 after each station
+//   stop. EXRAIL STOP is SPEED(0), so it leaves the previous direction latched.
+//   Setting FWD(0) or REV(0) while parked makes the next start deterministic,
+//   even if a decoder or task resumes from the zero-speed state before the next
+//   cruise command is processed.
 //
 // THE OTHER EXRAIL FOOTGUNS WE STILL HONOR
 //   1. Nested IF (IF inside IF) parses but the inner block never fires.
@@ -375,6 +381,7 @@ SEQUENCE(101)               // === first east leg (solo; mid is at first barrier
   FWD(20)
   DELAY(8000)
   STOP
+  REV(0)                    // pre-arm westbound return; STOP leaves direction latched
   DELAYRANDOM(3000, 8000)
   FOLLOW(102)
 
@@ -399,6 +406,7 @@ SEQUENCE(102)               // === west leg (Train 2 returning home; mid going e
   REV(20)
   DELAY(8000)
   STOP
+  FWD(0)                    // pre-arm next eastbound leg while parked at S1/home
   DELAYRANDOM(3000, 8000)
   IF(2001)                  // stop flag set -> park at home (top is at west now)
     FOLLOW(150)
@@ -427,6 +435,7 @@ SEQUENCE(103)               // === east leg (Train 2 going away; mid going west)
   FWD(20)
   DELAY(8000)
   STOP
+  REV(0)                    // pre-arm next westbound leg while parked at S2
   DELAYRANDOM(3000, 8000)
   FOLLOW(102)               // never park here (top is at east, not home)
 
@@ -476,6 +485,7 @@ SEQUENCE(201)               // === T4 east leg (Train 2 going west) ===
   FWD(20)
   DELAY(8000)
   STOP
+  REV(0)                    // pre-arm westbound return for Train 4
   DELAYRANDOM(3000, 8000)
   FOLLOW(202)               // never park here (mid is at east, not home)
 
@@ -494,6 +504,7 @@ SEQUENCE(202)               // === T4 west leg (Train 2 going east) ===
   REV(20)
   DELAY(8000)
   STOP
+  FWD(0)                    // pre-arm next Train 4 eastbound use while parked at west
   DELAYRANDOM(3000, 8000)
   IF(2001)                  // stop flag set -> park at home (T4 is at west now)
     FOLLOW(250)
@@ -521,6 +532,7 @@ SEQUENCE(203)               // === T5 east leg: leaves spur, runs to east end ==
   FWD(20)
   DELAY(10000)              // longer creep -- spur exit transition
   STOP
+  REV(0)                    // pre-arm westbound return for Train 5
   DELAYRANDOM(3000, 8000)
   FOLLOW(204)               // never park here (T5 is at east, not home)
 
@@ -543,6 +555,7 @@ SEQUENCE(204)               // === T5 west leg: returns to spur via still-CLOSED
   REV(20)
   DELAY(10000)              // longer creep -- spur entry transition
   STOP
+  FWD(0)                    // pre-arm next Train 5 eastbound use while parked on spur
   FOFF(0)
   THROW(2)                  // restore main clear for the next T4 lap
   DELAYRANDOM(3000, 8000)

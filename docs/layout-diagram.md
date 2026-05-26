@@ -1,6 +1,6 @@
 # Layout Diagram
 
-Current layout for the v3.17.0 route-lock candidate EXRAIL automation.
+Current layout for the v3.18.0 direction pre-arm EXRAIL automation.
 The last physically confirmed stable baseline is v3.16.0-STABLE.
 
 ## Logical Track Plan

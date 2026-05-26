@@ -1,7 +1,8 @@
 # Lessons Learned
 
-Read this before changing `dcc-ex/myAutomation.h`. The current stable script is
-v3.17.0 and is pending physical confirmation of the T2 route-lock change.
+Read this before changing `dcc-ex/myAutomation.h`. The current candidate script
+is v3.18.0 and is pending physical confirmation of the Train 2 direction
+pre-arm change.
 
 ## Current Rules That Matter
 
@@ -31,6 +32,8 @@ v3.17.0 and is pending physical confirmation of the T2 route-lock change.
   after `2011` can let Train 2 start moving while Train 5 is still waiting.
 - Current stable speeds are cruise 40 and creep 20. Train 2 and Train 4 creep
   for 8 seconds; Train 5 creeps for 10 seconds.
+- `STOP` leaves the previous direction latched. After each station stop, use
+  `FWD(0)` or `REV(0)` to pre-arm the next leg while the train remains parked.
 
 ## What Worked
 
@@ -45,9 +48,12 @@ v3.17.0 and is pending physical confirmation of the T2 route-lock change.
 - `AFTER(...)` as a departure-clear primitive. It waits for a sensor to trigger
   and then go off for about 0.5 seconds, which is exactly what a beam-break
   departure needs.
-- Mirrored shared-sensor handshakes:
+- Shared-sensor handshakes:
   - `2014` means the middle train has consumed and cleared S1 departure.
   - `2015` means the middle train has consumed and cleared S2 departure.
+- Zero-speed direction pre-arm:
+  - Use `FWD(0)` after a westbound stop when the next leg is eastbound.
+  - Use `REV(0)` after an eastbound stop when the next leg is westbound.
 - Graceful stop checks only at home arrivals. Stopping mid-leg leaves trains in
   hard-to-recover positions.
 - Parking flags plus a short barrier-finalize pulse. This prevents one task
@@ -99,5 +105,7 @@ v3.17.0 and is pending physical confirmation of the T2 route-lock change.
   handshake, depending on whether the false event happened at S1 or S2.
 - Train overruns a station: look for an `AFTER(...)` that could consume the
   arrival before `AT(...)` arms.
+- Train 2 stops at west/home, then starts west again instead of reversing east:
+  check that `FWD(0)` is issued after the westbound stop before `FOLLOW(103)`.
 - Graceful stop hangs: check parked flags `2012` / `2013` and barrier pulses
   `2010` / `2011`.

@@ -3,8 +3,8 @@
 This is the current technical handoff for the working DCC-EX / EXRAIL
 automation. It supersedes older two-train notes from the initial project import.
 
-Last updated: 2026-05-16
-Current script: `dcc-ex/myAutomation.h`, v3.17.0 route-lock candidate
+Last updated: 2026-05-26
+Current script: `dcc-ex/myAutomation.h`, v3.18.0 direction pre-arm candidate
 Last physically confirmed stable baseline: v3.16.0-STABLE
 Normal start command: `</START 100>`
 Graceful stop command: `</START 110>`
@@ -173,7 +173,12 @@ The bitmap HAL declaration matters. Without it, `SET`/`RESET` and
 - S1 and S2 clear handshakes:
   - Middle task sets `2014` after `AFTER(33)`.
   - Middle task sets `2015` after `AFTER(26)`.
-  - Train 2 waits for the relevant flag before arming its shared arrival beam.
+  - Train 2 waits for the relevant clear flag before arming its shared arrival
+    beam.
+- Zero-speed direction pre-arm:
+  - `STOP` is effectively speed zero and leaves the previous direction latched.
+  - Use `FWD(0)` after westbound station stops before an eastbound next leg.
+  - Use `REV(0)` after eastbound station stops before a westbound next leg.
 - Parking flags and barrier-finalize pulses for graceful stop. These prevent
   the surviving task from deadlocking when the other task has already parked.
 - Halved speeds: cruise 40 and creep 20 are the stable physical values.
@@ -262,12 +267,25 @@ This is the shared-beam false-arrival failure mode.
 
 Check:
 
-- For Train 2 westbound arrival at S1, it must wait for vpin `2014` before
+- For Train 2 westbound arrival at S1, it should wait for vpin `2014` before
   arming `AT(33)`.
-- For Train 2 eastbound arrival at S2, it must wait for vpin `2015` before
+- For Train 2 eastbound arrival at S2, it should wait for vpin `2015` before
   arming `AT(26)`.
 - The middle task must set `2014` immediately after `AFTER(33)` and `2015`
   immediately after `AFTER(26)`.
+
+### Train 2 stops at west/home, then starts west again
+
+This means the arrival and stop logic worked, but the next departure inherited
+the previous reverse direction.
+
+Check:
+
+- The westbound Train 2 stop in `SEQUENCE(102)` should issue `FWD(0)` before
+  `DELAYRANDOM(...)` and `FOLLOW(103)`.
+- The eastbound Train 2 stops in `SEQUENCE(101)` and `SEQUENCE(103)` should
+  issue `REV(0)` before the next westbound leg.
+- Do not replace this with `STOP`; `STOP` leaves the old direction latched.
 
 ### Train overruns a station sensor
 
@@ -302,7 +320,7 @@ Work layer by layer:
 
 | File | Purpose |
 | --- | --- |
-| `dcc-ex/myAutomation.h` | Current v3.17.0 route-lock candidate EXRAIL script |
+| `dcc-ex/myAutomation.h` | Current v3.18.0 direction pre-arm EXRAIL script |
 | `dcc-ex/myAutomation-backup.h` | Last physically confirmed stable backup copy |
 | `dcc-ex/sensor-setup-commands.txt` | Physical sensor declarations to resend after flash |
 | `docs/layout-diagram.md` | Current layout and behavior diagram |

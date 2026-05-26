@@ -30,6 +30,21 @@ refinement would distinguish leading and trailing lights where the decoder
 function map supports that, so only the forward-facing end is lit during each
 leg.
 
+### Show flashed EXRAIL version in the web UI
+
+Add a status panel to `web-control` that shows:
+
+1. The currently flashed `myAutomation.h` version reported by the CSB1 or OTA
+   updater state.
+2. The latest `main` branch `myAutomation.h` version from GitHub.
+3. The latest patch notes from the `myAutomation.h` header or a small generated
+   metadata file.
+
+The clean implementation is probably for the OTA updater to write a small
+status JSON document after each successful flash, then have the web server read
+that state or expose it through an internal API. Avoid scraping raw Kubernetes
+logs from the browser-facing app.
+
 ### Tune decoder speed tables
 
 Set CV5 (Vmax) on both locos so `FWD(40)` looks identical in real life. Then

@@ -7,7 +7,7 @@
 Sensor-driven model railroad automation built on a DCC-EX EX-CSB1 command
 station with Azatrax RIR4 beam-break sensors bridged through an Arduino Uno.
 
-Current automation: `dcc-ex/myAutomation.h` v3.17.0 route-lock candidate.
+Current automation: `dcc-ex/myAutomation.h` v3.18.0 direction pre-arm candidate.
 Last physically confirmed stable baseline: v3.16.0-STABLE.
 
 ## Quick Start
@@ -131,6 +131,8 @@ Spur:             \--- Train 5 home
 - With shared beam sensors, use `AFTER(...)` only for the train's own
   departure beam.
 - Do not add random departure delays while S1/S2 span both tracks.
+- `STOP` leaves the previous direction latched. Use `FWD(0)` / `REV(0)` after
+  station stops to pre-arm the next leg without moving.
 
 ## Web Control
 
