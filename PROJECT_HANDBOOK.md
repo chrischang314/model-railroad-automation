@@ -19,6 +19,10 @@ diagnostic payload. It intentionally keeps HTTP 200 so pod readiness does not
 flap solely because the CSB1 or layout is idle, while the JSON `ok` and
 `telemetry.stale` fields expose whether command-station messages are current.
 
+The main control page reports each write action through a compact status strip
+and bounded timestamped history so operators can see whether a command is still
+sending, succeeded, or failed without scanning the command log.
+
 ## Operator Safety Model
 
 Use the least disruptive stop that fits the situation:

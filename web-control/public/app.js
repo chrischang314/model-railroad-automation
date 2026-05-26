@@ -1,15 +1,20 @@
 let layoutConfig = null;
 let state = null;
 let authRequired = false;
+let nextActionId = 1;
 
 const tokenInput = document.querySelector("#tokenInput");
 const authPanel = document.querySelector("#authPanel");
 const connectionSummary = document.querySelector("#connectionSummary");
 const automationState = document.querySelector("#automationState");
+const actionStatus = document.querySelector("#actionStatus");
+const actionHistory = document.querySelector("#actionHistory");
 const sensorGrid = document.querySelector("#sensorGrid");
 const turnoutList = document.querySelector("#turnoutList");
 const trainList = document.querySelector("#trainList");
 const messageLog = document.querySelector("#messageLog");
+const recentActions = [];
+const MAX_ACTION_HISTORY = 6;
 
 init();
 
@@ -31,13 +36,18 @@ async function init() {
 }
 
 function wireGlobalButtons() {
-  document.querySelector("#refreshButton").addEventListener("click", () => post("/api/refresh"));
-  document.querySelector("#startButton").addEventListener("click", () => post("/api/automation/start"));
-  document.querySelector("#stopButton").addEventListener("click", () => post("/api/automation/stop"));
-  document.querySelector("#stopAllButton").addEventListener("click", () => post("/api/trains/stop-all"));
-  document.querySelector("#emergencyButton").addEventListener("click", () => post("/api/emergency-stop"));
-  document.querySelector("#powerOnButton").addEventListener("click", () => post("/api/power", { state: "on" }));
-  document.querySelector("#powerOffButton").addEventListener("click", () => post("/api/power", { state: "off" }));
+  bindAction("#refreshButton", "Refresh", "/api/refresh");
+  bindAction("#startButton", "Start Shuttle", "/api/automation/start");
+  bindAction("#stopButton", "Graceful Stop", "/api/automation/stop");
+  bindAction("#stopAllButton", "All Stop", "/api/trains/stop-all");
+  bindAction("#emergencyButton", "Emergency Stop", "/api/emergency-stop");
+  bindAction("#powerOnButton", "Power On", "/api/power", { state: "on" });
+  bindAction("#powerOffButton", "Power Off", "/api/power", { state: "off" });
+}
+
+function bindAction(selector, label, path, body = {}) {
+  const button = document.querySelector(selector);
+  button.addEventListener("click", () => post(path, body, { label, button }));
 }
 
 function connectEvents() {
@@ -117,7 +127,11 @@ function renderTurnouts() {
     `;
     item.querySelectorAll("button").forEach((button) => {
       if (button.dataset.state === status) button.classList.add("active");
-      button.addEventListener("click", () => post(`/api/turnouts/${turnout.id}`, { state: button.dataset.state }));
+      button.addEventListener("click", () => post(
+        `/api/turnouts/${turnout.id}`,
+        { state: button.dataset.state },
+        { label: `${turnout.label} ${button.dataset.state}`, button }
+      ));
     });
     turnoutList.append(item);
   }
@@ -180,19 +194,19 @@ function renderTrains() {
       post(`/api/trains/${train.address}/throttle`, {
         speed: Number(number.value),
         direction: selectedDirection
-      });
+      }, { label: `${train.label} throttle`, button: item.querySelector(".apply-button") });
     });
     item.querySelector(".stop-button").addEventListener("click", () => {
       post(`/api/trains/${train.address}/throttle`, {
         speed: 0,
         direction: selectedDirection
-      });
+      }, { label: `${train.label} stop`, button: item.querySelector(".stop-button") });
     });
     item.querySelector(".f0-button").addEventListener("click", () => {
       post(`/api/trains/${train.address}/function`, {
         function: 0,
         state: !f0
-      });
+      }, { label: `${train.label} F0`, button: item.querySelector(".f0-button") });
     });
     trainList.append(item);
   }
@@ -205,7 +219,11 @@ function renderMessages() {
     .join("\n");
 }
 
-async function post(path, body = {}) {
+async function post(path, body = {}, options = {}) {
+  const { button = null, label = "Command" } = options;
+  const action = beginAction(label);
+  if (button) button.disabled = true;
+
   try {
     const response = await fetch(path, {
       method: "POST",
@@ -215,9 +233,15 @@ async function post(path, body = {}) {
       },
       body: JSON.stringify(body)
     });
-    if (!response.ok) throw new Error((await response.json()).error || response.statusText);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || response.statusText);
+    completeAction(action, "success", actionSuccessMessage(label, payload));
+    return payload;
   } catch (error) {
+    completeAction(action, "error", `${label} failed: ${error.message}`);
     alert(error.message);
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -245,6 +269,52 @@ function getTelemetrySummary(connection) {
     label: `${ageSeconds}s ago`,
     stale: Boolean(connection.connected) && ageSeconds * 1000 > staleAfterMs
   };
+}
+
+function actionSuccessMessage(label, payload) {
+  if (Array.isArray(payload.commands)) return `${label} sent ${payload.commands.length} commands`;
+  if (payload.command) return `${label} sent ${payload.command}`;
+  return `${label} complete`;
+}
+
+function beginAction(label) {
+  const action = {
+    id: nextActionId++,
+    label,
+    message: `${label} sending...`,
+    status: "pending",
+    at: new Date()
+  };
+  recentActions.unshift(action);
+  recentActions.splice(MAX_ACTION_HISTORY);
+  renderActionStatus(action);
+  return action;
+}
+
+function completeAction(action, status, message) {
+  action.status = status;
+  action.message = message;
+  action.at = new Date();
+  renderActionStatus(action);
+}
+
+function renderActionStatus(action) {
+  setActionStatus(action.message, action.status);
+  actionHistory.innerHTML = "";
+  for (const entry of recentActions) {
+    const item = document.createElement("li");
+    item.className = `action-history-item ${entry.status}`;
+    item.innerHTML = `
+      <time datetime="${entry.at.toISOString()}">${entry.at.toLocaleTimeString()}</time>
+      <span>${escapeHtml(entry.message)}</span>
+    `;
+    actionHistory.append(item);
+  }
+}
+
+function setActionStatus(message, status) {
+  actionStatus.textContent = message;
+  actionStatus.className = `action-status ${status}`;
 }
 
 function escapeHtml(value) {

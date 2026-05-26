@@ -80,6 +80,9 @@ Useful environment variables:
   `ok` field turns false when the command station is disconnected or telemetry
   is stale. It includes active sensors, moving trains, power, automation, and
   telemetry age data for LAN dashboards.
+- Control action feedback: the main control panel reports when a write action is
+  sending, succeeds, or fails, and keeps a bounded timestamped history of recent
+  control actions without requiring the operator to read the full command log.
 
 ## Programming Workbench
 

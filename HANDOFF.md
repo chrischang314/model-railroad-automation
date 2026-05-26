@@ -1,15 +1,15 @@
 # Model Railroad Web-Control Handoff
 
 Last updated: 2026-05-21
-Current branch: `projects-lan-implementer-c-2026-05-21-telemetry-health`
+Current branch: merged telemetry health and control action status work
 
 ## Current Change
 
-Implementer C selected the small projects.lan feature "telemetry staleness
-visibility" because stale command-station data is high-value for daily LAN
-health checks and safe railroad operation.
+This merge combines telemetry staleness visibility with control-page action
+feedback because both improve operator confidence without changing the
+hardware-facing command contracts.
 
-This branch adds a reliability-oriented implementation:
+The telemetry health work adds a reliability-oriented implementation:
 
 - `web-control/src/telemetry-health.js` builds a tested health payload with
   telemetry age, stale status, moving trains, active sensors, power, and
@@ -20,6 +20,9 @@ This branch adds a reliability-oriented implementation:
 - `/api/config` exposes `TELEMETRY_STALE_MS`, defaulting to 15 seconds.
 - The Control and Programming page headers show the last command-station
   message age and turn amber when telemetry is stale.
+- The main control page reports each write action through the `#actionStatus`
+  `aria-live` region, records a bounded timestamped entry in `#actionHistory`,
+  and temporarily disables the clicked button while the request is in flight.
 
 The existing All Stop behavior remains unchanged. It calls
 `POST /api/trains/stop-all`, which sends `<t cab 0 direction>` for every train
@@ -53,6 +56,9 @@ exercise stale styling locally, run without mock against an unreachable host and
 confirm the header shows a connection error; against real hardware, wait longer
 than `TELEMETRY_STALE_MS` after the last command-station message to see the
 amber stale state.
+Then click Refresh, Power On, All Stop, a turnout action, and a train stop.
+Confirm the status strip changes from sending to a success message, the recent
+action history stays bounded, and failures show the red error state.
 
 ## Deployment Notes
 

@@ -36,6 +36,8 @@
           <button id="stopAllButton" class="button warning">All Stop</button>
           <button id="emergencyButton" class="button danger">Emergency Stop</button>
         </div>
+        <div id="actionStatus" class="action-status idle" role="status" aria-live="polite">Ready</div>
+        <ol id="actionHistory" class="action-history" aria-label="Recent control actions"></ol>
         <div id="authPanel" class="auth-panel hidden">
           <label for="tokenInput">Control token</label>
           <input id="tokenInput" type="password" autocomplete="current-password">
