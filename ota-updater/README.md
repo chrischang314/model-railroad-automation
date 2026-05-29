@@ -44,6 +44,9 @@ The updater:
 
 - Tracks the SHA-256 of `dcc-ex/myAutomation.h` plus `dcc-ex/config.csb1.h`.
 - Does not flash on first run by default. It records a baseline hash first.
+- Writes a bounded firmware status JSON artifact after meaningful runs. The
+  default path is `/state/firmware-status.json`, configurable with
+  `FIRMWARE_STATUS_FILE`.
 - Powers down/stops trains before flashing by sending `</KILL ALL>`, `<!>`,
   and `<0>` to `DCCEX_HOST:DCCEX_PORT`.
 - Re-sends S1/S2 physical sensor declarations after flashing.
@@ -186,6 +189,26 @@ After the force flash succeeds, remove the override:
 ```bash
 kubectl -n railroad set env deploy/csb1-ota-updater FORCE_FLASH-
 ```
+
+## Firmware Status Artifact
+
+The updater writes `firmware-status.json` with the model repo ref/commit,
+CommandStation-EX ref/commit, tracked automation/config hash, parsed automation
+version label, flash decision, target device/host, proof timestamps, and
+post-flash sensor setup result. Failure strings are shortened and redacted
+against secret-like environment values before they are written.
+
+The web-control app can expose this file through `GET /api/firmware-status`.
+For a shared Kubernetes deployment, mount or copy the updater state file to the
+web-control pod and set:
+
+```text
+FIRMWARE_STATUS_FILE=/state/firmware-status.json
+```
+
+Rollback is data-only: remove the environment variable or mounted JSON file.
+The updater's existing `last-flashed.sha256` state is separate and should be
+left in place unless you intentionally want to reset flash baseline behavior.
 
 ## Manual One-Shot Test On The Pi
 

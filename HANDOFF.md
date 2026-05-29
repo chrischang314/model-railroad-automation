@@ -1,87 +1,63 @@
 # Model Railroad Web-Control Handoff
 
-Last updated: 2026-05-21
-Current branch: merged telemetry health and control action status work
+Last updated: 2026-05-29
+Current branch: `projects-lan-implementer-c-2026-05-29-railroad-flash-provenance`
 
 ## Current Change
 
-This merge combines telemetry staleness visibility with control-page action
-feedback because both improve operator confidence without changing the
-hardware-facing command contracts.
+Implementer C added read-only flash provenance visibility.
 
-The telemetry health work adds a reliability-oriented implementation:
+- `ota-updater/updater.py` now writes a bounded `firmware-status.json` artifact
+  after baseline, no-change, `AUTO_FLASH=false`, successful flash, and failure
+  outcomes.
+- `web-control` exposes `GET /api/firmware-status` without requiring
+  `CONTROL_TOKEN`.
+- The Control page renders a compact Firmware panel with live DCC-EX version,
+  expected automation version/hash, latest proof time, flash decision, and
+  post-flash sensor setup result.
 
-- `web-control/src/telemetry-health.js` builds a tested health payload with
-  telemetry age, stale status, moving trains, active sensors, power, and
-  automation state.
-- `/health` still returns HTTP 200 for Kubernetes probe stability, but its JSON
-  `ok` field now turns false when the command station is disconnected or
-  telemetry is stale.
-- `/api/config` exposes `TELEMETRY_STALE_MS`, defaulting to 15 seconds.
-- The Control and Programming page headers show the last command-station
-  message age and turn amber when telemetry is stale.
-- The main control page reports each write action through the `#actionStatus`
-  `aria-live` region, records a bounded timestamped entry in `#actionHistory`,
-  and temporarily disables the clicked button while the request is in flight.
-
-The existing All Stop behavior remains unchanged. It calls
-`POST /api/trains/stop-all`, which sends `<t cab 0 direction>` for every train
-listed in `web-control/src/layout.js` while preserving each current direction
-bit.
-
-This is intentionally different from Emergency Stop. All Stop stops configured
-locomotives through throttle commands while leaving EXRAIL running; Emergency
-Stop still sends `</KILL ALL>` and `<!>`.
+The status path is configurable with `FIRMWARE_STATUS_FILE`. Web-control warns
+instead of returning 500 when the file is missing, stale, malformed, failed, or
+unavailable.
 
 ## Verification
 
-Run the focused tests from `web-control/`:
+Completed in this worktree:
 
 ```powershell
 & "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" --test
+python -m unittest discover -s ota-updater\tests
 ```
 
-For browser verification, run mock mode and open the control and programming
-pages:
+Both passed on 2026-05-29. A Playwright mock-mode browser smoke also loaded the
+Control page, verified the Firmware panel rendered `v3.18.0` and the shortened
+hash, clicked the panel refresh button, and confirmed the command log did not
+gain TX entries.
+
+To repeat the browser verification, run mock mode with a fixture status file:
 
 ```powershell
 $env:DCCEX_MOCK = "true"
+$env:FIRMWARE_STATUS_FILE = "<path-to-fixture>\firmware-status.json"
 $env:PORT = "3000"
-& "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" src/server.js
+& "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" web-control\src\server.js
 ```
 
-Confirm `/health` includes `telemetry`, `movingTrains`, and `activeSensors`.
-On the pages, confirm the header includes `telemetry mock` in mock mode. To
-exercise stale styling locally, run without mock against an unreachable host and
-confirm the header shows a connection error; against real hardware, wait longer
-than `TELEMETRY_STALE_MS` after the last command-station message to see the
-amber stale state.
-Then click Refresh, Power On, All Stop, a turnout action, and a train stop.
-Confirm the status strip changes from sending to a success message, the recent
-action history stays bounded, and failures show the red error state.
+Open `http://127.0.0.1:3000/` and confirm the Firmware panel renders without
+creating command-log transmit entries.
 
 ## Deployment Notes
 
-The Kubernetes app is defined in
-`C:\Users\chris\Projects\container-orchestrator\apps\model-railroad-automation\values.yaml`
-and currently tracks the `main` image tag.
+This implementer branch is judge-ready only. It was not merged, pushed,
+published, or deployed by the implementer role.
 
-The All Stop change was merged to `main`, published by the GitHub Actions
-`build-and-push` workflow, and deployed on 2026-05-20 with:
+Live deployment needs the web-control pod to see the same status artifact path
+that the updater writes. The updater default and manifest path are
+`/state/firmware-status.json`; set web-control `FIRMWARE_STATUS_FILE` to the
+mounted shared path in `container-orchestrator` if the judge selects this
+implementation. Do not store WiFi credentials, control tokens, kube tokens, or
+raw updater logs in the artifact.
 
-```powershell
-& "C:\Users\chris\.codex\tools\helm-v4.2.0\helm.exe" lint charts\app -f apps\model-railroad-automation\values.yaml
-& "C:\Users\chris\.codex\tools\helm-v4.2.0\helm.exe" upgrade --install model-railroad-automation charts/app -f apps/model-railroad-automation/values.yaml --namespace default --create-namespace --wait --timeout 5m
-kubectl rollout restart deployment/model-railroad-automation-web-control -n default
-kubectl rollout status deployment/model-railroad-automation-web-control -n default --timeout=180s
-```
-
-The live LAN page at `http://modelrailroadautomation.lan/` includes the All Stop
-button, and `POST /api/trains/stop-all` was smoke-tested while the railroad was
-idle.
-
-Implementer C did not push, merge, publish, or deploy this branch because the
-feature pipeline expects a judge to compare A/B/C implementations first. After
-judge selection, publish the winning branch to `main`, wait for the GHCR
-`web-control:main` image, then redeploy through `container-orchestrator` and
-verify `http://modelrailroadautomation.lan/health`.
+Rollback is a source revert plus removing the web-control
+`FIRMWARE_STATUS_FILE` mount/env if deployed. Leave `last-flashed.sha256`
+untouched unless the flash baseline intentionally needs to reset.

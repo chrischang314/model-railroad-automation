@@ -142,9 +142,15 @@ Over TCP bridge. The first UI includes shuttle start/stop, emergency stop,
 track power, turnout control, train throttle controls, F0/headlight toggles,
 an All Stop button that sends speed-zero commands to every configured cab,
 sensor status, timestamped control action feedback, a command log, and stale
-telemetry warnings in the page header.
+telemetry warnings in the page header. It also includes a read-only firmware
+provenance panel showing the live DCC-EX version, expected automation
+version/hash, latest flash decision, proof time, and post-flash sensor setup
+result.
 The `/health` endpoint also reports the last command-station message age,
 moving train count, active sensors, power state, and automation state.
+`GET /api/firmware-status` reads the updater JSON artifact without sending any
+DCC-EX command. Set `FIRMWARE_STATUS_FILE` for the artifact path and optionally
+`FIRMWARE_STATUS_STALE_MS` for the freshness window.
 
 ```bash
 docker compose up --build

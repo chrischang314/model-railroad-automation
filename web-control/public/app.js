@@ -1,5 +1,6 @@
 let layoutConfig = null;
 let state = null;
+let firmwareStatus = null;
 let authRequired = false;
 let nextActionId = 1;
 
@@ -9,6 +10,14 @@ const connectionSummary = document.querySelector("#connectionSummary");
 const automationState = document.querySelector("#automationState");
 const actionStatus = document.querySelector("#actionStatus");
 const actionHistory = document.querySelector("#actionHistory");
+const firmwareState = document.querySelector("#firmwareState");
+const firmwareDccVersion = document.querySelector("#firmwareDccVersion");
+const firmwareAutomationVersion = document.querySelector("#firmwareAutomationVersion");
+const firmwareHash = document.querySelector("#firmwareHash");
+const firmwareLastProof = document.querySelector("#firmwareLastProof");
+const firmwareDecision = document.querySelector("#firmwareDecision");
+const firmwareSensorSetup = document.querySelector("#firmwareSensorSetup");
+const firmwareWarning = document.querySelector("#firmwareWarning");
 const sensorGrid = document.querySelector("#sensorGrid");
 const turnoutList = document.querySelector("#turnoutList");
 const trainList = document.querySelector("#trainList");
@@ -29,10 +38,12 @@ async function init() {
   authPanel.classList.toggle("hidden", !authRequired);
 
   wireGlobalButtons();
+  await loadFirmwareStatus();
   state = await apiGet("/api/state");
   render();
   connectEvents();
   setInterval(render, 5000);
+  setInterval(loadFirmwareStatus, 60000);
 }
 
 function wireGlobalButtons() {
@@ -43,6 +54,7 @@ function wireGlobalButtons() {
   bindAction("#emergencyButton", "Emergency Stop", "/api/emergency-stop");
   bindAction("#powerOnButton", "Power On", "/api/power", { state: "on" });
   bindAction("#powerOffButton", "Power Off", "/api/power", { state: "off" });
+  document.querySelector("#firmwareRefreshButton").addEventListener("click", loadFirmwareStatus);
 }
 
 function bindAction(selector, label, path, body = {}) {
@@ -86,6 +98,45 @@ function render() {
   renderTurnouts();
   renderTrains();
   renderMessages();
+  renderFirmwareStatus();
+}
+
+async function loadFirmwareStatus() {
+  try {
+    firmwareStatus = await apiGet("/api/firmware-status");
+  } catch (error) {
+    firmwareStatus = {
+      ok: false,
+      state: "warning",
+      warning: `Firmware status unavailable: ${error.message}`,
+      automation: {},
+      flash: {},
+      sensorSetup: {}
+    };
+  }
+  renderFirmwareStatus();
+}
+
+function renderFirmwareStatus() {
+  if (!firmwareState) return;
+
+  const status = firmwareStatus || {};
+  const flash = status.flash || {};
+  const automation = status.automation || {};
+  const sensorSetup = status.sensorSetup || {};
+  const stateClass = status.ok ? "running" : "alert";
+  firmwareState.textContent = status.ok ? "Current" : "Warning";
+  firmwareState.className = `status-pill ${stateClass}`;
+  firmwareDccVersion.textContent = state?.connection?.version || status.dccExVersion || "Unknown";
+  firmwareAutomationVersion.textContent = automation.version || "Unknown";
+  firmwareHash.textContent = shortHash(automation.trackedHash || flash.currentHash);
+  firmwareLastProof.textContent = formatStatusTime(
+    flash.flashedAt || flash.baselineRecordedAt || status.generatedAt
+  );
+  firmwareDecision.textContent = humanizeDecision(flash.decision);
+  firmwareSensorSetup.textContent = humanizeDecision(sensorSetup.result || "not-run");
+  firmwareWarning.textContent = status.warning || "";
+  firmwareWarning.classList.toggle("hidden", !status.warning);
 }
 
 function renderSensors() {
@@ -269,6 +320,24 @@ function getTelemetrySummary(connection) {
     label: `${ageSeconds}s ago`,
     stale: Boolean(connection.connected) && ageSeconds * 1000 > staleAfterMs
   };
+}
+
+function shortHash(value) {
+  const hash = String(value || "").trim();
+  return hash ? hash.slice(0, 12) : "Unknown";
+}
+
+function formatStatusTime(value) {
+  if (!value) return "Unknown";
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "Unknown";
+  return new Date(timestamp).toLocaleString();
+}
+
+function humanizeDecision(value) {
+  const text = String(value || "unknown").replace(/[-_]+/g, " ").trim();
+  if (!text) return "Unknown";
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function actionSuccessMessage(label, payload) {

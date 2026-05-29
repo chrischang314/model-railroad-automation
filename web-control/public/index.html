@@ -44,6 +44,43 @@
         </div>
       </section>
 
+      <section class="surface firmware-panel" aria-labelledby="firmwareHeading">
+        <div class="panel-heading">
+          <h2 id="firmwareHeading">Firmware</h2>
+          <div class="panel-actions">
+            <span id="firmwareState" class="status-pill unknown">Unknown</span>
+            <button id="firmwareRefreshButton" class="button ghost compact-button" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="firmware-grid">
+          <div>
+            <span>DCC-EX</span>
+            <strong id="firmwareDccVersion">Unknown</strong>
+          </div>
+          <div>
+            <span>Automation</span>
+            <strong id="firmwareAutomationVersion">Unknown</strong>
+          </div>
+          <div>
+            <span>Tracked hash</span>
+            <strong id="firmwareHash">Unknown</strong>
+          </div>
+          <div>
+            <span>Last proof</span>
+            <strong id="firmwareLastProof">Unknown</strong>
+          </div>
+          <div>
+            <span>Flash decision</span>
+            <strong id="firmwareDecision">Unknown</strong>
+          </div>
+          <div>
+            <span>Sensor setup</span>
+            <strong id="firmwareSensorSetup">Unknown</strong>
+          </div>
+        </div>
+        <div id="firmwareWarning" class="firmware-warning hidden" role="status" aria-live="polite"></div>
+      </section>
+
       <section class="surface">
         <div class="panel-heading">
           <h2>Sensors</h2>

@@ -25,3 +25,22 @@ test("control page includes action status feedback assets", async () => {
   assert.match(styles, /\.action-status/);
   assert.match(styles, /\.action-history/);
 });
+
+test("control page includes firmware provenance panel assets", async () => {
+  const [html, script, styles] = await Promise.all([
+    fs.readFile(path.join(publicDir, "index.html"), "utf8"),
+    fs.readFile(path.join(publicDir, "app.js"), "utf8"),
+    fs.readFile(path.join(publicDir, "styles.css"), "utf8")
+  ]);
+
+  assert.match(html, /id="firmwareState"/);
+  assert.match(html, /id="firmwareDccVersion"/);
+  assert.match(html, /id="firmwareRefreshButton"/);
+  assert.match(html, /id="firmwareWarning"/);
+  assert.match(script, /\/api\/firmware-status/);
+  assert.match(script, /function renderFirmwareStatus/);
+  assert.match(script, /function loadFirmwareStatus/);
+  assert.doesNotMatch(script, /post\("\/api\/firmware-status/);
+  assert.match(styles, /\.firmware-panel/);
+  assert.match(styles, /\.firmware-grid/);
+});

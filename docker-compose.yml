@@ -11,3 +11,4 @@ services:
       DCCEX_PORT: "${DCCEX_PORT:-2560}"
       DCCEX_MOCK: "${DCCEX_MOCK:-false}"
       CONTROL_TOKEN: "${CONTROL_TOKEN:-}"
+      FIRMWARE_STATUS_FILE: "${FIRMWARE_STATUS_FILE:-/app/data/firmware-status.json}"

@@ -23,6 +23,13 @@ The main control page reports each write action through a compact status strip
 and bounded timestamped history so operators can see whether a command is still
 sending, succeeded, or failed without scanning the command log.
 
+The firmware provenance surface is deliberately read-only. The updater writes a
+bounded `firmware-status.json` artifact after baseline, no-change, skipped,
+successful, or failed runs. Web-control reads that file through
+`GET /api/firmware-status` and combines it with the live command-station version
+already observed from DCC-EX messages. Loading or refreshing the panel must not
+send train, turnout, power, CV, raw, or flash commands.
+
 ## Operator Safety Model
 
 Use the least disruptive stop that fits the situation:
@@ -35,6 +42,10 @@ Use the least disruptive stop that fits the situation:
 
 All write/control APIs are protected by `CONTROL_TOKEN` when that environment
 variable is set.
+
+`GET /api/firmware-status` stays public like other read-only diagnostics. It
+must not expose raw updater logs, environment variables, WiFi credentials,
+tokens, shell output, or Kubernetes Secret values.
 
 ## Change Rules
 

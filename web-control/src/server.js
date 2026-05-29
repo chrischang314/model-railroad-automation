@@ -5,6 +5,11 @@ const { DccExClient } = require("./dcc-client");
 const { layout } = require("./layout");
 const { buildStopAllTrainCommands } = require("./railroad-commands");
 const { DEFAULT_TELEMETRY_STALE_MS, buildHealthPayload } = require("./telemetry-health");
+const {
+  DEFAULT_FIRMWARE_STATUS_STALE_MS,
+  defaultFirmwareStatusFile,
+  readFirmwareStatus
+} = require("./firmware-status");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -14,11 +19,17 @@ const DCCEX_MOCK = String(process.env.DCCEX_MOCK || "").toLowerCase() === "true"
 const CONTROL_TOKEN = process.env.CONTROL_TOKEN || "";
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const ROSTER_FILE = process.env.ROSTER_FILE || path.join(__dirname, "..", "data", "roster.json");
+const FIRMWARE_STATUS_FILE = process.env.FIRMWARE_STATUS_FILE || defaultFirmwareStatusFile();
 const configuredTelemetryStaleMs = Number(process.env.TELEMETRY_STALE_MS || DEFAULT_TELEMETRY_STALE_MS);
 const TELEMETRY_STALE_MS =
   Number.isFinite(configuredTelemetryStaleMs) && configuredTelemetryStaleMs > 0
     ? configuredTelemetryStaleMs
     : DEFAULT_TELEMETRY_STALE_MS;
+const configuredFirmwareStatusStaleMs = Number(process.env.FIRMWARE_STATUS_STALE_MS || DEFAULT_FIRMWARE_STATUS_STALE_MS);
+const FIRMWARE_STATUS_STALE_MS =
+  Number.isFinite(configuredFirmwareStatusStaleMs) && configuredFirmwareStatusStaleMs > 0
+    ? configuredFirmwareStatusStaleMs
+    : DEFAULT_FIRMWARE_STATUS_STALE_MS;
 
 const dcc = new DccExClient({
   host: DCCEX_HOST,
@@ -83,6 +94,17 @@ async function handleApi(request, response) {
 
   if (request.method === "GET" && pathname === "/api/state") {
     return sendJson(response, 200, dcc.getState());
+  }
+
+  if (request.method === "GET" && pathname === "/api/firmware-status") {
+    const payload = await readFirmwareStatus(FIRMWARE_STATUS_FILE, {
+      configured: Boolean(process.env.FIRMWARE_STATUS_FILE),
+      staleAfterMs: FIRMWARE_STATUS_STALE_MS
+    });
+    return sendJson(response, 200, {
+      ...payload,
+      dccExVersion: dcc.getState()?.connection?.version || null
+    });
   }
 
   if (request.method === "GET" && pathname === "/api/roster") {
