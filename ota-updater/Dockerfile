@@ -26,6 +26,7 @@ RUN set -eux; \
 
 WORKDIR /app
 COPY updater.py /app/updater.py
+COPY firmware_status.py /app/firmware_status.py
 
 ENV STATE_DIR=/state
 ENV WORK_DIR=/work
@@ -42,5 +43,6 @@ ENV FQBN=esp32:esp32:esp32
 ENV DEVICE_PORT=/dev/ttyUSB0
 ENV DCCEX_HOST=192.168.4.22
 ENV DCCEX_PORT=2560
+ENV FIRMWARE_STATUS_FILE=/state/firmware-status.json
 
 ENTRYPOINT ["python", "/app/updater.py"]

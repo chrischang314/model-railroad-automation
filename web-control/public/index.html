@@ -44,6 +44,22 @@
         </div>
       </section>
 
+      <section class="surface firmware-panel">
+        <div class="panel-heading">
+          <h2>Firmware</h2>
+          <button id="firmwareRefreshButton" class="button ghost">Refresh</button>
+        </div>
+        <div id="firmwareStatusPanel" class="firmware-status warning" aria-live="polite">
+          <div class="firmware-status-head">
+            <div>
+              <h3>Firmware Proof Loading</h3>
+              <div class="meta">Reading the updater status artifact...</div>
+            </div>
+            <span class="status-pill alert">loading</span>
+          </div>
+        </div>
+      </section>
+
       <section class="surface">
         <div class="panel-heading">
           <h2>Sensors</h2>
@@ -73,6 +89,7 @@
       </section>
     </main>
 
+    <script src="/firmware-status-view.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

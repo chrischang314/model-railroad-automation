@@ -6,9 +6,10 @@ const test = require("node:test");
 const publicDir = path.join(__dirname, "..", "public");
 
 test("control page includes action status feedback assets", async () => {
-  const [html, script, styles] = await Promise.all([
+  const [html, script, firmwareView, styles] = await Promise.all([
     fs.readFile(path.join(publicDir, "index.html"), "utf8"),
     fs.readFile(path.join(publicDir, "app.js"), "utf8"),
+    fs.readFile(path.join(publicDir, "firmware-status-view.js"), "utf8"),
     fs.readFile(path.join(publicDir, "styles.css"), "utf8")
   ]);
 
@@ -24,4 +25,11 @@ test("control page includes action status feedback assets", async () => {
   assert.match(script, /function actionSuccessMessage/);
   assert.match(styles, /\.action-status/);
   assert.match(styles, /\.action-history/);
+  assert.match(html, /id="firmwareStatusPanel"/);
+  assert.match(html, /id="firmwareRefreshButton"/);
+  assert.match(html, /firmware-status-view\.js/);
+  assert.match(script, /\/api\/firmware-status/);
+  assert.match(script, /function renderFirmwareStatus/);
+  assert.match(firmwareView, /function renderFirmwareStatusPanel/);
+  assert.match(styles, /\.firmware-status/);
 });

@@ -47,8 +47,19 @@ The updater:
 - Powers down/stops trains before flashing by sending `</KILL ALL>`, `<!>`,
   and `<0>` to `DCCEX_HOST:DCCEX_PORT`.
 - Re-sends S1/S2 physical sensor declarations after flashing.
+- Writes a bounded JSON provenance artifact after each meaningful run. The
+  artifact records the tracked input hash, `myAutomation.h` version label when
+  detected, model repo commit/ref, CommandStation-EX ref, flash decision,
+  target device/host, flash or baseline time, and post-flash sensor setup
+  result. Failure messages are shortened and redact secret-like environment
+  values.
 - Injects CSB1 WiFi credentials from a Kubernetes Secret at build time. Do not
   commit WiFi credentials to `dcc-ex/config.csb1.h`.
+
+The status artifact defaults to `/state/firmware-status.json`. Override it with
+`FIRMWARE_STATUS_FILE` if the updater state is mounted somewhere else. The
+web-control service can mount the same state directory and expose the artifact
+through `GET /api/firmware-status`.
 
 ## Local Pi Setup From Scratch
 
@@ -186,6 +197,17 @@ After the force flash succeeds, remove the override:
 ```bash
 kubectl -n railroad set env deploy/csb1-ota-updater FORCE_FLASH-
 ```
+
+The model-railroad web-control deployment should mount the same updater state
+directory and set:
+
+```yaml
+FIRMWARE_STATUS_FILE=/state/firmware-status.json
+FIRMWARE_STATUS_STALE_MS=604800000
+```
+
+The current container-orchestrator values wire that mount from
+`/var/lib/csb1-ota-updater/state` on `railroad-pi3`.
 
 ## Manual One-Shot Test On The Pi
 
