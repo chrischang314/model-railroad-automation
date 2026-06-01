@@ -1,6 +1,8 @@
 let layoutConfig = null;
 let state = null;
 let firmwareStatus = null;
+let sessionPayload = null;
+let sessionLoading = false;
 let authRequired = false;
 let nextActionId = 1;
 
@@ -12,6 +14,11 @@ const actionStatus = document.querySelector("#actionStatus");
 const actionHistory = document.querySelector("#actionHistory");
 const firmwareStatusPanel = document.querySelector("#firmwareStatusPanel");
 const firmwareRefreshButton = document.querySelector("#firmwareRefreshButton");
+const sessionState = document.querySelector("#sessionState");
+const sessionSummary = document.querySelector("#sessionSummary");
+const sessionRefreshButton = document.querySelector("#sessionRefreshButton");
+const sessionExportLink = document.querySelector("#sessionExportLink");
+const sessionEventList = document.querySelector("#sessionEventList");
 const sensorGrid = document.querySelector("#sensorGrid");
 const turnoutList = document.querySelector("#turnoutList");
 const trainList = document.querySelector("#trainList");
@@ -34,11 +41,12 @@ async function init() {
   wireGlobalButtons();
   firmwareRefreshButton.addEventListener("click", () => loadFirmwareStatus());
   state = await apiGet("/api/state");
-  await loadFirmwareStatus();
+  await Promise.all([loadFirmwareStatus(), loadSessionPanel()]);
   render();
   connectEvents();
   setInterval(render, 5000);
   setInterval(loadFirmwareStatus, 60000);
+  setInterval(loadSessionPanel, 15000);
 }
 
 function wireGlobalButtons() {
@@ -49,6 +57,10 @@ function wireGlobalButtons() {
   bindAction("#emergencyButton", "Emergency Stop", "/api/emergency-stop");
   bindAction("#powerOnButton", "Power On", "/api/power", { state: "on" });
   bindAction("#powerOffButton", "Power Off", "/api/power", { state: "off" });
+  sessionRefreshButton.addEventListener("click", () => loadSessionPanel());
+  sessionExportLink.addEventListener("click", (event) => {
+    if (sessionExportLink.getAttribute("aria-disabled") === "true") event.preventDefault();
+  });
 }
 
 function bindAction(selector, label, path, body = {}) {
@@ -93,6 +105,7 @@ function render() {
   renderTrains();
   renderMessages();
   renderFirmwareStatus();
+  renderSessionPanel();
 }
 
 async function loadFirmwareStatus() {
@@ -252,6 +265,70 @@ function renderMessages() {
     .slice(0, 40)
     .map((entry) => `${new Date(entry.at).toLocaleTimeString()} ${entry.direction.toUpperCase()} ${entry.message}`)
     .join("\n");
+}
+
+async function loadSessionPanel() {
+  if (sessionLoading) return;
+  sessionLoading = true;
+  sessionRefreshButton.disabled = true;
+
+  try {
+    sessionPayload = await apiGet("/api/sessions/latest");
+  } catch (error) {
+    sessionPayload = {
+      ok: false,
+      session: null,
+      warnings: [`Session status unavailable: ${error.message}`]
+    };
+  } finally {
+    sessionLoading = false;
+    sessionRefreshButton.disabled = false;
+    renderSessionPanel();
+  }
+}
+
+function renderSessionPanel() {
+  if (!sessionPayload) return;
+
+  const session = sessionPayload.session;
+  const warnings = [...(sessionPayload.warnings || []), ...(session?.warnings || [])];
+  const warning = warnings.find(Boolean);
+  sessionState.textContent = warning ? "Warning" : session ? "Recording" : "Empty";
+  sessionState.className = `status-pill ${warning ? "alert" : session ? "running" : "stopped"}`;
+
+  if (!session) {
+    sessionSummary.textContent = warning || "No session events recorded yet.";
+    sessionEventList.innerHTML = "";
+    setSessionExport(null);
+    return;
+  }
+
+  const last = session.lastEventAt ? new Date(session.lastEventAt).toLocaleTimeString() : "none";
+  sessionSummary.textContent = `${session.eventCount} events | last ${last}`;
+  setSessionExport(session.id);
+
+  sessionEventList.innerHTML = "";
+  for (const event of (session.recentEvents || []).slice(0, 5)) {
+    const item = document.createElement("li");
+    item.innerHTML = `
+      <time datetime="${escapeHtml(event.at)}">${new Date(event.at).toLocaleTimeString()}</time>
+      <span>${escapeHtml(event.type)}</span>
+    `;
+    sessionEventList.append(item);
+  }
+}
+
+function setSessionExport(sessionId) {
+  if (!sessionId) {
+    sessionExportLink.href = "#";
+    sessionExportLink.classList.add("disabled");
+    sessionExportLink.setAttribute("aria-disabled", "true");
+    return;
+  }
+
+  sessionExportLink.href = `/api/sessions/${encodeURIComponent(sessionId)}/export`;
+  sessionExportLink.classList.remove("disabled");
+  sessionExportLink.setAttribute("aria-disabled", "false");
 }
 
 async function post(path, body = {}, options = {}) {

@@ -11,3 +11,8 @@ services:
       DCCEX_PORT: "${DCCEX_PORT:-2560}"
       DCCEX_MOCK: "${DCCEX_MOCK:-false}"
       CONTROL_TOKEN: "${CONTROL_TOKEN:-}"
+      SESSION_DATA_DIR: "/app/data/sessions"
+      SESSION_RETENTION_COUNT: "${SESSION_RETENTION_COUNT:-10}"
+      SESSION_RETENTION_DAYS: "${SESSION_RETENTION_DAYS:-7}"
+    volumes:
+      - ./web-control/data:/app/data

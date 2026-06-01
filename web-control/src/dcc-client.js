@@ -4,7 +4,7 @@ const net = require("node:net");
 const MAX_LOG_MESSAGES = 120;
 
 class DccExClient extends EventEmitter {
-  constructor({ host, port, mock, layout, pollMs = 2000 }) {
+  constructor({ host, port, mock, layout, pollMs = 2000, recorder = null }) {
     super();
     this.host = host;
     this.port = port;
@@ -15,6 +15,7 @@ class DccExClient extends EventEmitter {
     this.buffer = "";
     this.reconnectTimer = null;
     this.pollTimer = null;
+    this.recorder = recorder;
     this.state = createInitialState(layout, { host, port, mock });
   }
 
@@ -46,9 +47,9 @@ class DccExClient extends EventEmitter {
 
   async send(command) {
     assertCommand(command);
-    this.record("tx", command);
 
     if (this.mock) {
+      this.record("tx", command);
       this.applyMockCommand(command);
       this.emitState();
       return { command, mock: true };
@@ -110,6 +111,7 @@ class DccExClient extends EventEmitter {
 
   write(command) {
     if (!this.socket) return;
+    this.record("tx", command);
     this.socket.write(command);
   }
 
@@ -235,12 +237,14 @@ class DccExClient extends EventEmitter {
   }
 
   record(direction, message) {
-    this.state.messages.unshift({
+    const entry = {
       direction,
       message,
       at: new Date().toISOString()
-    });
+    };
+    this.state.messages.unshift(entry);
     this.state.messages = this.state.messages.slice(0, MAX_LOG_MESSAGES);
+    this.recorder?.record(`dcc.${direction}`, entry);
   }
 
   emitState() {
