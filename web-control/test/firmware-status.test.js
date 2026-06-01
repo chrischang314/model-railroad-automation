@@ -72,6 +72,8 @@ test("firmware panel view renders current, missing, and warning states", () => {
   }, null);
   assert.match(missingContainer.className, /missing/);
   assert.match(missingContainer.innerHTML, /Firmware Proof Needs Attention/);
+  assert.match(missingContainer.innerHTML, /Unknown/);
+  assert.doesNotMatch(missingContainer.innerHTML, /undefined/);
 
   const warningContainer = { className: "", innerHTML: "" };
   renderFirmwareStatusPanel(warningContainer, {

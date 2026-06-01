@@ -66,7 +66,7 @@
   }
 
   function formatSensorSetup(setup) {
-    if (!setup || setup.status === "unknown") return "Unknown";
+    if (!setup || !setup.status || setup.status === "unknown") return "Unknown";
     if (setup.reason) return `${setup.status}: ${setup.reason}`;
     if (setup.error) return `${setup.status}: ${setup.error}`;
     return setup.status;
