@@ -1,11 +1,11 @@
 # Model Railroad Web-Control Handoff
 
 Last updated: 2026-05-29
-Current branch: `model-railroad-implementer-b-2026-05-29-railroad-flash-provenance`
+Current branch: `main`
 
 ## Current Change
 
-This branch adds read-only flash provenance visibility. It does not change
+This change adds read-only flash provenance visibility. It does not change
 EXRAIL, train commands, turnout commands, power commands, CV writes, or raw
 command behavior.
 
@@ -76,8 +76,8 @@ The Kubernetes app is defined in
 `C:\Users\chris\Projects\container-orchestrator\apps\model-railroad-automation\values.yaml`
 and currently tracks the `main` image tag.
 
-After judge selection, publish the winning branch to `main`, wait for the GHCR
-`web-control:main` image, then deploy with:
+After publishing `main`, wait for the GHCR `web-control:main` image, then
+deploy with:
 
 ```powershell
 & "C:\Users\chris\.codex\tools\helm-v4.2.0\helm.exe" lint charts\app -f apps\model-railroad-automation\values.yaml
@@ -90,9 +90,7 @@ The live LAN page at `http://modelrailroadautomation.lan/` includes the All Stop
 button, and `POST /api/trains/stop-all` was smoke-tested while the railroad was
 idle.
 
-Implementer B did not merge, publish, or deploy this branch because the feature
-pipeline expects a judge to compare A/B/C implementations first. After deploy,
-verify:
+After deploy, verify:
 
 - `http://modelrailroadautomation.lan/api/firmware-status` returns HTTP 200.
 - The Control page renders the Firmware panel.
