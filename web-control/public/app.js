@@ -1,5 +1,6 @@
 let layoutConfig = null;
 let state = null;
+let firmwareStatus = null;
 let authRequired = false;
 let nextActionId = 1;
 
@@ -9,6 +10,8 @@ const connectionSummary = document.querySelector("#connectionSummary");
 const automationState = document.querySelector("#automationState");
 const actionStatus = document.querySelector("#actionStatus");
 const actionHistory = document.querySelector("#actionHistory");
+const firmwareStatusPanel = document.querySelector("#firmwareStatusPanel");
+const firmwareRefreshButton = document.querySelector("#firmwareRefreshButton");
 const sensorGrid = document.querySelector("#sensorGrid");
 const turnoutList = document.querySelector("#turnoutList");
 const trainList = document.querySelector("#trainList");
@@ -29,10 +32,13 @@ async function init() {
   authPanel.classList.toggle("hidden", !authRequired);
 
   wireGlobalButtons();
+  firmwareRefreshButton.addEventListener("click", () => loadFirmwareStatus());
   state = await apiGet("/api/state");
+  await loadFirmwareStatus();
   render();
   connectEvents();
   setInterval(render, 5000);
+  setInterval(loadFirmwareStatus, 60000);
 }
 
 function wireGlobalButtons() {
@@ -86,6 +92,35 @@ function render() {
   renderTurnouts();
   renderTrains();
   renderMessages();
+  renderFirmwareStatus();
+}
+
+async function loadFirmwareStatus() {
+  if (firmwareRefreshButton) firmwareRefreshButton.disabled = true;
+  try {
+    firmwareStatus = await apiGet("/api/firmware-status");
+  } catch (error) {
+    firmwareStatus = {
+      ok: false,
+      state: "unavailable",
+      severity: "error",
+      message: `Firmware status unavailable: ${error.message}`,
+      commandStationVersion: null,
+      artifact: null
+    };
+  } finally {
+    if (firmwareRefreshButton) firmwareRefreshButton.disabled = false;
+  }
+  renderFirmwareStatus();
+}
+
+function renderFirmwareStatus() {
+  if (!firmwareStatusPanel || !window.FirmwareStatusView) return;
+  window.FirmwareStatusView.renderFirmwareStatusPanel(
+    firmwareStatusPanel,
+    firmwareStatus,
+    state?.connection?.version
+  );
 }
 
 function renderSensors() {

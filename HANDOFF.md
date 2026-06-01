@@ -1,28 +1,30 @@
 # Model Railroad Web-Control Handoff
 
-Last updated: 2026-05-21
-Current branch: merged telemetry health and control action status work
+Last updated: 2026-05-29
+Current branch: `main`
 
 ## Current Change
 
-This merge combines telemetry staleness visibility with control-page action
-feedback because both improve operator confidence without changing the
-hardware-facing command contracts.
+This change adds read-only flash provenance visibility. It does not change
+EXRAIL, train commands, turnout commands, power commands, CV writes, or raw
+command behavior.
 
-The telemetry health work adds a reliability-oriented implementation:
-
-- `web-control/src/telemetry-health.js` builds a tested health payload with
-  telemetry age, stale status, moving trains, active sensors, power, and
-  automation state.
-- `/health` still returns HTTP 200 for Kubernetes probe stability, but its JSON
-  `ok` field now turns false when the command station is disconnected or
-  telemetry is stale.
-- `/api/config` exposes `TELEMETRY_STALE_MS`, defaulting to 15 seconds.
-- The Control and Programming page headers show the last command-station
-  message age and turn amber when telemetry is stale.
-- The main control page reports each write action through the `#actionStatus`
-  `aria-live` region, records a bounded timestamped entry in `#actionHistory`,
-  and temporarily disables the clicked button while the request is in flight.
+- `ota-updater/firmware_status.py` writes a bounded
+  `/state/firmware-status.json` artifact after baseline, no-change, skipped,
+  success, warning, or failed updater runs.
+- `ota-updater/updater.py` records the tracked hash for `myAutomation.h` plus
+  `config.csb1.h`, model and CommandStation refs/commits, parsed automation
+  version, target device/host, flash decision, flash or baseline time, sensor
+  setup result, and redacted short errors.
+- `web-control/src/firmware-status.js` exposes a safe public
+  `GET /api/firmware-status` endpoint. Missing, malformed, stale, or failed
+  status files return HTTP 200 warning payloads.
+- The Control page shows a Firmware panel with live DCC-EX version, expected
+  automation version/hash, last proof time, updater decision, and sensor setup
+  result. Loading or refreshing this panel sends only a GET request.
+- A container-orchestrator companion branch mounts
+  `/var/lib/csb1-ota-updater/state` into web-control at `/state` and sets
+  `FIRMWARE_STATUS_FILE=/state/firmware-status.json`.
 
 The existing All Stop behavior remains unchanged. It calls
 `POST /api/trains/stop-all`, which sends `<t cab 0 direction>` for every train
@@ -41,6 +43,13 @@ Run the focused tests from `web-control/`:
 & "C:\Program Files\cursor\resources\app\resources\helpers\node.exe" --test
 ```
 
+Run the updater status tests from the repo root:
+
+```powershell
+python -m py_compile ota-updater\firmware_status.py ota-updater\updater.py ota-updater\test_firmware_status.py
+python -m unittest ota-updater\test_firmware_status.py
+```
+
 For browser verification, run mock mode and open the control and programming
 pages:
 
@@ -56,9 +65,10 @@ exercise stale styling locally, run without mock against an unreachable host and
 confirm the header shows a connection error; against real hardware, wait longer
 than `TELEMETRY_STALE_MS` after the last command-station message to see the
 amber stale state.
-Then click Refresh, Power On, All Stop, a turnout action, and a train stop.
-Confirm the status strip changes from sending to a success message, the recent
-action history stays bounded, and failures show the red error state.
+For firmware UI verification, point `FIRMWARE_STATUS_FILE` at a fixture JSON
+file and confirm the Control page renders current, missing, malformed, and
+stale states. Fetching `/api/firmware-status` and refreshing the Firmware panel
+must not add DCC-EX transmit messages to `/api/state`.
 
 ## Deployment Notes
 
@@ -66,8 +76,8 @@ The Kubernetes app is defined in
 `C:\Users\chris\Projects\container-orchestrator\apps\model-railroad-automation\values.yaml`
 and currently tracks the `main` image tag.
 
-The All Stop change was merged to `main`, published by the GitHub Actions
-`build-and-push` workflow, and deployed on 2026-05-20 with:
+After publishing `main`, wait for the GHCR `web-control:main` image, then
+deploy with:
 
 ```powershell
 & "C:\Users\chris\.codex\tools\helm-v4.2.0\helm.exe" lint charts\app -f apps\model-railroad-automation\values.yaml
@@ -80,8 +90,13 @@ The live LAN page at `http://modelrailroadautomation.lan/` includes the All Stop
 button, and `POST /api/trains/stop-all` was smoke-tested while the railroad was
 idle.
 
-Implementer C did not push, merge, publish, or deploy this branch because the
-feature pipeline expects a judge to compare A/B/C implementations first. After
-judge selection, publish the winning branch to `main`, wait for the GHCR
-`web-control:main` image, then redeploy through `container-orchestrator` and
-verify `http://modelrailroadautomation.lan/health`.
+After deploy, verify:
+
+- `http://modelrailroadautomation.lan/api/firmware-status` returns HTTP 200.
+- The Control page renders the Firmware panel.
+- Loading and refreshing firmware status sends no train, turnout, power, CV,
+  raw command, or flash action.
+
+Rollback is a normal revert of the updater status writer, web-control endpoint,
+UI panel, and container-orchestrator status-path mount. Leave
+`last-flashed.sha256` untouched.

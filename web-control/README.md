@@ -59,6 +59,8 @@ Useful environment variables:
 | `CONTROL_TOKEN` | empty | Optional bearer token for write/control requests |
 | `ROSTER_FILE` | `web-control/data/roster.json` | Local website roster metadata store |
 | `TELEMETRY_STALE_MS` | `15000` | Command-station message age before UI and `/health` mark telemetry stale |
+| `FIRMWARE_STATUS_FILE` | `web-control/data/firmware-status.json` | Read-only updater provenance JSON file shown by `/api/firmware-status` |
+| `FIRMWARE_STATUS_STALE_MS` | 7 days | Firmware proof age before the UI reports it stale |
 
 ## Implemented Controls
 
@@ -83,6 +85,11 @@ Useful environment variables:
 - Control action feedback: the main control panel reports when a write action is
   sending, succeeds, or fails, and keeps a bounded timestamped history of recent
   control actions without requiring the operator to read the full command log.
+- Firmware provenance: the main control panel reads
+  `GET /api/firmware-status` and shows the latest updater status artifact,
+  including expected EXRAIL version/hash, last flash or baseline time, and
+  post-flash sensor setup result. This endpoint is public and read-only; it does
+  not send DCC-EX commands or start a firmware build.
 
 ## Programming Workbench
 
