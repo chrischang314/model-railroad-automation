@@ -8,6 +8,9 @@ and sends DCC-EX native commands to either:
 
 ## Run Locally
 
+Requires Node >=22.5. The Docker image uses Node 24 so the server can read the
+shared SQLite auth database through Node's built-in `node:sqlite` module.
+
 Mock mode, no command station required:
 
 ```bash
@@ -56,11 +59,41 @@ Useful environment variables:
 | `DCCEX_HOST` | `192.168.4.22` | CSB1 or JMRI DCC++ Over TCP host |
 | `DCCEX_PORT` | `2560` | DCC-EX TCP port |
 | `DCCEX_MOCK` | `false` | Set `true` for UI testing without hardware |
-| `CONTROL_TOKEN` | empty | Optional bearer token for write/control requests |
+| `SHARED_AUTH_DB` | `~/.local-webapps/auth.db` | Shared SQLite auth database containing `users` and `auth_sessions` |
+| `HARDWARE_ARM_TOKEN` | empty | Optional one-time arm secret that signed-in operators can use to arm hardware commands for `HARDWARE_ARM_TTL_MS` |
+| `HARDWARE_ARM_TTL_MS` | `900000` | Hardware arm lifetime in milliseconds |
+| `HARDWARE_CONTROL_ALLOWLIST` | empty | Comma-separated usernames, username keys, numeric user IDs, or `id:<id>` entries allowed to send hardware commands without arming |
+| `ALLOWED_ORIGINS` | empty | Extra comma-separated origins allowed by the CSRF origin guard; the request host is allowed automatically |
+| `CSRF_SECRET` | random per process | HMAC secret for the server-issued CSRF token shown in `GET /api/config` |
+| `CONTROL_TOKEN` | empty | Legacy bearer token, accepted only when `CONTROL_TOKEN_COMPAT_MODE=true` |
+| `CONTROL_TOKEN_COMPAT_MODE` | `false` | Explicit compatibility mode for old service clients that still send `Authorization: Bearer ...` or `X-Control-Token` |
 | `ROSTER_FILE` | `web-control/data/roster.json` | Local website roster metadata store |
 | `TELEMETRY_STALE_MS` | `15000` | Command-station message age before UI and `/health` mark telemetry stale |
 | `FIRMWARE_STATUS_FILE` | `web-control/data/firmware-status.json` | Read-only updater provenance JSON file shown by `/api/firmware-status` |
 | `FIRMWARE_STATUS_STALE_MS` | 7 days | Firmware proof age before the UI reports it stale |
+
+## Auth And Hardware Safety
+
+Read-only status endpoints stay public, including `/health`, `GET /api/state`,
+`GET /api/roster`, and `GET /api/firmware-status`.
+
+Unsafe browser writes use the `projects_lan_session` cookie for identity. The
+server hashes that cookie and validates it against `auth_sessions` joined to
+`users` in `SHARED_AUTH_DB`; the browser no longer sends a bearer token from
+localStorage. Cookie-backed `POST` and `DELETE` requests must also include the
+same-origin `Origin` or `Referer` plus the `X-CSRF-Token` returned by
+`GET /api/config`.
+
+Physical hardware commands have a second gate after SSO. Raw commands, power,
+throttle, functions, turnouts, automation start/stop, emergency stop, all stop,
+and programming commands require the signed-in user to be in
+`HARDWARE_CONTROL_ALLOWLIST` or to arm hardware control with
+`POST /api/hardware-arm` and `HARDWARE_ARM_TOKEN`. Roster metadata writes and
+the safe `/api/refresh` status poll require SSO and CSRF, but not hardware arm.
+
+`CONTROL_TOKEN` remains only as an explicit compatibility path for scripts or
+service clients. It is ignored unless `CONTROL_TOKEN_COMPAT_MODE=true`, and the
+browser UI does not read it from localStorage or send it as authorization.
 
 ## Implemented Controls
 

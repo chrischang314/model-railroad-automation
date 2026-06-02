@@ -151,6 +151,10 @@ moving train count, active sensors, power state, and automation state.
 `GET /api/firmware-status` returns the same firmware proof as a safe read-only
 JSON endpoint; missing, stale, failed, or malformed proof files are warnings
 instead of web server failures.
+Write/control routes require a valid projects.lan `projects_lan_session`
+validated against the shared auth database. Physical hardware commands also
+require a configured hardware arm token or user allowlist, while firmware and
+status reads remain public.
 
 ```bash
 docker compose up --build

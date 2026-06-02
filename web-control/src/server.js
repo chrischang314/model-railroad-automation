@@ -1,4 +1,5 @@
 const http = require("node:http");
+const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { DccExClient } = require("./dcc-client");
@@ -6,6 +7,12 @@ const { layout } = require("./layout");
 const { buildStopAllTrainCommands } = require("./railroad-commands");
 const { DEFAULT_TELEMETRY_STALE_MS, buildHealthPayload } = require("./telemetry-health");
 const { DEFAULT_STATUS_FILE, DEFAULT_STALE_MS, readFirmwareStatus } = require("./firmware-status");
+const {
+  SESSION_COOKIE_NAME,
+  getSessionToken,
+  getUserBySessionToken,
+  normalizeUsername
+} = require("./shared-auth");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -13,6 +20,12 @@ const DCCEX_HOST = process.env.DCCEX_HOST || "192.168.4.22";
 const DCCEX_PORT = Number(process.env.DCCEX_PORT || 2560);
 const DCCEX_MOCK = String(process.env.DCCEX_MOCK || "").toLowerCase() === "true";
 const CONTROL_TOKEN = process.env.CONTROL_TOKEN || "";
+const CONTROL_TOKEN_COMPAT_MODE = isTruthy(process.env.CONTROL_TOKEN_COMPAT_MODE);
+const HARDWARE_ARM_TOKEN = process.env.HARDWARE_ARM_TOKEN || "";
+const HARDWARE_ARM_TTL_MS = positiveNumber(process.env.HARDWARE_ARM_TTL_MS, 15 * 60 * 1000);
+const HARDWARE_CONTROL_ALLOWLIST = parseList(process.env.HARDWARE_CONTROL_ALLOWLIST);
+const ALLOWED_ORIGINS = parseList(process.env.ALLOWED_ORIGINS);
+const CSRF_SECRET = process.env.CSRF_SECRET || crypto.randomBytes(32).toString("hex");
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const ROSTER_FILE = process.env.ROSTER_FILE || path.join(__dirname, "..", "data", "roster.json");
 const FIRMWARE_STATUS_FILE = process.env.FIRMWARE_STATUS_FILE || DEFAULT_STATUS_FILE;
@@ -35,6 +48,7 @@ const dcc = new DccExClient({
 });
 
 const sseClients = new Set();
+const hardwareArms = new Map();
 dcc.on("state", (state) => {
   const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
   for (const response of sseClients) response.write(payload);
@@ -78,11 +92,14 @@ process.on("SIGINT", shutdown);
 async function handleApi(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const pathname = url.pathname;
+  const authContext = getRequestAuth(request);
+  const access = classifyApiAccess(request.method, pathname);
 
   if (request.method === "GET" && pathname === "/api/config") {
     return sendJson(response, 200, {
       layout,
-      authRequired: Boolean(CONTROL_TOKEN),
+      authRequired: true,
+      auth: buildAuthPayload(authContext),
       dccTarget: { host: DCCEX_HOST, port: DCCEX_PORT, mock: DCCEX_MOCK },
       telemetry: { staleAfterMs: TELEMETRY_STALE_MS },
       firmwareStatus: { staleAfterMs: FIRMWARE_STATUS_STALE_MS }
@@ -105,7 +122,19 @@ async function handleApi(request, response) {
     return sendJson(response, 200, { roster: await readRoster() });
   }
 
-  requireControlToken(request);
+  if (access.requiresAuth) {
+    requireWriteAccess(request, authContext, access);
+  }
+
+  if (request.method === "POST" && pathname === "/api/hardware-arm") {
+    const body = await readJson(request);
+    return handleHardwareArm(response, authContext, body);
+  }
+
+  if (request.method === "DELETE" && pathname === "/api/hardware-arm") {
+    if (authContext.user) hardwareArms.delete(String(authContext.user.id));
+    return sendJson(response, 200, { ok: true, hardware: hardwareStatus(authContext.user) });
+  }
 
   if (request.method === "POST" && pathname === "/api/command") {
     const body = await readJson(request);
@@ -352,15 +381,200 @@ async function readJson(request) {
   return JSON.parse(raw);
 }
 
-function requireControlToken(request) {
-  if (!CONTROL_TOKEN) return;
+function classifyApiAccess(method, pathname) {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    return { requiresAuth: false, requiresHardware: false };
+  }
+
+  if (pathname === "/api/hardware-arm") {
+    return { requiresAuth: true, requiresHardware: false };
+  }
+
+  if (pathname === "/api/refresh" || pathname === "/api/roster" || /^\/api\/roster\/\d+$/.test(pathname)) {
+    return { requiresAuth: true, requiresHardware: false };
+  }
+
+  return { requiresAuth: true, requiresHardware: true };
+}
+
+function getRequestAuth(request) {
+  if (isLegacyControlTokenAuthorized(request)) {
+    return {
+      mode: "legacy-control-token",
+      user: null,
+      sessionToken: "",
+      csrfToken: null,
+      legacyControlTokenCompat: true
+    };
+  }
+
+  const sessionToken = getSessionToken(request);
+  const user = getUserBySessionToken(sessionToken);
+  return {
+    mode: user ? "sso" : "anonymous",
+    user,
+    sessionToken,
+    csrfToken: user ? createCsrfToken(sessionToken) : null,
+    legacyControlTokenCompat: CONTROL_TOKEN_COMPAT_MODE && Boolean(CONTROL_TOKEN)
+  };
+}
+
+function requireWriteAccess(request, authContext, access) {
+  if (authContext.mode === "legacy-control-token") return authContext;
+  if (!authContext.user) {
+    throw httpError(401, "Sign in with projects.lan before sending control requests");
+  }
+
+  requireCookieWriteGuard(request, authContext);
+
+  if (access.requiresHardware && !hasHardwareAuthority(authContext.user)) {
+    throw httpError(403, "Hardware control is not armed for this signed-in user");
+  }
+
+  return authContext;
+}
+
+function requireCookieWriteGuard(request, authContext) {
+  if (!isAllowedOrigin(request)) {
+    throw httpError(403, "Unsafe request origin is not allowed");
+  }
+
+  const header = request.headers["x-csrf-token"] || "";
+  if (!timingSafeEqual(String(header), authContext.csrfToken || "")) {
+    throw httpError(403, "Invalid CSRF token");
+  }
+}
+
+function isAllowedOrigin(request) {
+  const origin = request.headers.origin || refererOrigin(request.headers.referer);
+  if (!origin) return false;
+  return allowedOrigins(request).has(origin);
+}
+
+function allowedOrigins(request) {
+  const origins = new Set(ALLOWED_ORIGINS);
+  const host = firstHeaderValue(request.headers["x-forwarded-host"] || request.headers.host);
+  const proto = firstHeaderValue(request.headers["x-forwarded-proto"]) || (request.socket.encrypted ? "https" : "http");
+  if (host) {
+    origins.add(`${proto}://${host}`);
+    origins.add(`http://${host}`);
+    origins.add(`https://${host}`);
+  }
+  return origins;
+}
+
+function refererOrigin(referer) {
+  if (!referer) return "";
+  try {
+    return new URL(referer).origin;
+  } catch {
+    return "";
+  }
+}
+
+function firstHeaderValue(value) {
+  return String(Array.isArray(value) ? value[0] : value || "").split(",")[0].trim();
+}
+
+function isLegacyControlTokenAuthorized(request) {
+  if (!CONTROL_TOKEN_COMPAT_MODE || !CONTROL_TOKEN) return false;
   const header = request.headers.authorization || request.headers["x-control-token"] || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : header;
-  if (token !== CONTROL_TOKEN) {
-    const error = new Error("Unauthorized");
-    error.statusCode = 401;
-    throw error;
+  return timingSafeEqual(token, CONTROL_TOKEN);
+}
+
+function createCsrfToken(sessionToken) {
+  return crypto.createHmac("sha256", CSRF_SECRET).update(String(sessionToken || ""), "utf8").digest("hex");
+}
+
+function timingSafeEqual(left, right) {
+  const leftBuffer = Buffer.from(String(left || ""), "utf8");
+  const rightBuffer = Buffer.from(String(right || ""), "utf8");
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function buildAuthPayload(authContext) {
+  return {
+    mode: "sso",
+    cookieName: SESSION_COOKIE_NAME,
+    authenticated: Boolean(authContext.user),
+    user: authContext.user ? publicUser(authContext.user) : null,
+    csrfToken: authContext.csrfToken,
+    legacyControlTokenCompat: authContext.legacyControlTokenCompat,
+    hardware: hardwareStatus(authContext.user)
+  };
+}
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    username: user.username
+  };
+}
+
+function hardwareStatus(user) {
+  const allowlisted = isHardwareAllowlisted(user);
+  const armedUntil = user ? hardwareArms.get(String(user.id)) || 0 : 0;
+  const armed = armedUntil > Date.now();
+  if (user && !armed) hardwareArms.delete(String(user.id));
+  return {
+    required: true,
+    allowed: allowlisted || armed,
+    allowlisted,
+    armed,
+    armConfigured: Boolean(HARDWARE_ARM_TOKEN),
+    armedUntil: armed ? new Date(armedUntil).toISOString() : null,
+    armTtlMs: HARDWARE_ARM_TTL_MS
+  };
+}
+
+function hasHardwareAuthority(user) {
+  return hardwareStatus(user).allowed;
+}
+
+function isHardwareAllowlisted(user) {
+  if (!user) return false;
+  const candidates = new Set([
+    String(user.id),
+    `id:${user.id}`,
+    normalizeUsername(user.username),
+    normalizeUsername(user.usernameKey)
+  ]);
+  return HARDWARE_CONTROL_ALLOWLIST.some((entry) => candidates.has(normalizeUsername(entry)));
+}
+
+function handleHardwareArm(response, authContext, body) {
+  if (!authContext.user) throw httpError(401, "Sign in with projects.lan before arming hardware control");
+  if (!HARDWARE_ARM_TOKEN) throw httpError(403, "Hardware arm token is not configured");
+  if (!timingSafeEqual(body.token || "", HARDWARE_ARM_TOKEN)) {
+    throw httpError(403, "Invalid hardware arm token");
   }
+
+  hardwareArms.set(String(authContext.user.id), Date.now() + HARDWARE_ARM_TTL_MS);
+  return sendJson(response, 200, { ok: true, hardware: hardwareStatus(authContext.user) });
+}
+
+function parseList(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function positiveNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function isTruthy(value) {
+  return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+}
+
+function httpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
 }
 
 function sendJson(response, statusCode, payload) {

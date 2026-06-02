@@ -39,8 +39,13 @@
         <div id="actionStatus" class="action-status idle" role="status" aria-live="polite">Ready</div>
         <ol id="actionHistory" class="action-history" aria-label="Recent control actions"></ol>
         <div id="authPanel" class="auth-panel hidden">
-          <label for="tokenInput">Control token</label>
-          <input id="tokenInput" type="password" autocomplete="current-password">
+          <div id="authStatus" class="meta">Checking operator access...</div>
+          <label for="tokenInput">Hardware arm token</label>
+          <div class="auth-controls">
+            <input id="tokenInput" type="password" autocomplete="one-time-code">
+            <button id="armButton" class="button secondary" type="button">Arm</button>
+            <button id="disarmButton" class="button ghost" type="button">Disarm</button>
+          </div>
         </div>
       </section>
 

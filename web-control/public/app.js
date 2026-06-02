@@ -1,11 +1,14 @@
 let layoutConfig = null;
 let state = null;
 let firmwareStatus = null;
-let authRequired = false;
+let authState = null;
 let nextActionId = 1;
 
 const tokenInput = document.querySelector("#tokenInput");
 const authPanel = document.querySelector("#authPanel");
+const authStatus = document.querySelector("#authStatus");
+const armButton = document.querySelector("#armButton");
+const disarmButton = document.querySelector("#disarmButton");
 const connectionSummary = document.querySelector("#connectionSummary");
 const automationState = document.querySelector("#automationState");
 const actionStatus = document.querySelector("#actionStatus");
@@ -22,16 +25,17 @@ const MAX_ACTION_HISTORY = 6;
 init();
 
 async function init() {
-  tokenInput.value = localStorage.getItem("controlToken") || "";
-  tokenInput.addEventListener("change", () => {
-    localStorage.setItem("controlToken", tokenInput.value);
-  });
+  tokenInput.value = "";
+  tokenInput.placeholder = localStorage.getItem("controlToken")
+    ? "Saved browser token ignored; enter arm token"
+    : "Hardware arm token";
 
   layoutConfig = await apiGet("/api/config");
-  authRequired = layoutConfig.authRequired;
-  authPanel.classList.toggle("hidden", !authRequired);
+  authState = layoutConfig.auth || {};
+  renderAuthPanel();
 
   wireGlobalButtons();
+  wireAuthButtons();
   firmwareRefreshButton.addEventListener("click", () => loadFirmwareStatus());
   state = await apiGet("/api/state");
   await loadFirmwareStatus();
@@ -49,6 +53,11 @@ function wireGlobalButtons() {
   bindAction("#emergencyButton", "Emergency Stop", "/api/emergency-stop");
   bindAction("#powerOnButton", "Power On", "/api/power", { state: "on" });
   bindAction("#powerOffButton", "Power Off", "/api/power", { state: "off" });
+}
+
+function wireAuthButtons() {
+  armButton.addEventListener("click", () => armHardware());
+  disarmButton.addEventListener("click", () => disarmHardware());
 }
 
 function bindAction(selector, label, path, body = {}) {
@@ -121,6 +130,73 @@ function renderFirmwareStatus() {
     firmwareStatus,
     state?.connection?.version
   );
+}
+
+function renderAuthPanel() {
+  if (!authPanel || !authState) return;
+  authPanel.classList.remove("hidden");
+  const hardware = authState.hardware || {};
+  const username = authState.user?.username || "unknown user";
+
+  if (!authState.authenticated) {
+    authStatus.textContent = "Signed out; control writes require projects.lan SSO.";
+    tokenInput.disabled = true;
+    armButton.disabled = true;
+    disarmButton.disabled = true;
+    return;
+  }
+
+  if (hardware.allowed) {
+    authStatus.textContent = hardware.allowlisted
+      ? `Signed in as ${username}; hardware allowed.`
+      : `Signed in as ${username}; hardware armed until ${formatTime(hardware.armedUntil)}.`;
+  } else if (hardware.armConfigured) {
+    authStatus.textContent = `Signed in as ${username}; hardware arm required.`;
+  } else {
+    authStatus.textContent = `Signed in as ${username}; hardware arm token is not configured.`;
+  }
+
+  tokenInput.disabled = !hardware.armConfigured;
+  armButton.disabled = !hardware.armConfigured;
+  disarmButton.disabled = !hardware.armed;
+}
+
+async function armHardware() {
+  const action = beginAction("Hardware arm");
+  armButton.disabled = true;
+  try {
+    const payload = await requestJson("/api/hardware-arm", {
+      method: "POST",
+      body: { token: tokenInput.value }
+    });
+    authState.hardware = payload.hardware;
+    tokenInput.value = "";
+    renderAuthPanel();
+    completeAction(action, "success", "Hardware control armed");
+  } catch (error) {
+    completeAction(action, "error", `Hardware arm failed: ${error.message}`);
+    alert(error.message);
+  } finally {
+    armButton.disabled = false;
+    renderAuthPanel();
+  }
+}
+
+async function disarmHardware() {
+  const action = beginAction("Hardware disarm");
+  disarmButton.disabled = true;
+  try {
+    const payload = await requestJson("/api/hardware-arm", { method: "DELETE" });
+    authState.hardware = payload.hardware;
+    renderAuthPanel();
+    completeAction(action, "success", "Hardware control disarmed");
+  } catch (error) {
+    completeAction(action, "error", `Hardware disarm failed: ${error.message}`);
+    alert(error.message);
+  } finally {
+    disarmButton.disabled = false;
+    renderAuthPanel();
+  }
 }
 
 function renderSensors() {
@@ -260,16 +336,7 @@ async function post(path, body = {}, options = {}) {
   if (button) button.disabled = true;
 
   try {
-    const response = await fetch(path, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders()
-      },
-      body: JSON.stringify(body)
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || response.statusText);
+    const payload = await requestJson(path, { method: "POST", body });
     completeAction(action, "success", actionSuccessMessage(label, payload));
     return payload;
   } catch (error) {
@@ -280,6 +347,23 @@ async function post(path, body = {}, options = {}) {
   }
 }
 
+async function requestJson(path, options = {}) {
+  const headers = { ...authHeaders(), ...(options.headers || {}) };
+  const fetchOptions = {
+    method: options.method || "GET",
+    headers
+  };
+  if (Object.hasOwn(options, "body")) {
+    fetchOptions.headers = { "Content-Type": "application/json", ...headers };
+    fetchOptions.body = JSON.stringify(options.body);
+  }
+
+  const response = await fetch(path, fetchOptions);
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || response.statusText);
+  return payload;
+}
+
 async function apiGet(path) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(response.statusText);
@@ -287,8 +371,8 @@ async function apiGet(path) {
 }
 
 function authHeaders() {
-  if (!authRequired) return {};
-  return { Authorization: `Bearer ${tokenInput.value}` };
+  if (!authState?.csrfToken) return {};
+  return { "X-CSRF-Token": authState.csrfToken };
 }
 
 function getTelemetrySummary(connection) {
@@ -350,6 +434,13 @@ function renderActionStatus(action) {
 function setActionStatus(message, status) {
   actionStatus.textContent = message;
   actionStatus.className = `action-status ${status}`;
+}
+
+function formatTime(value) {
+  if (!value) return "unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return date.toLocaleTimeString();
 }
 
 function escapeHtml(value) {

@@ -1,10 +1,13 @@
 let layoutConfig = null;
 let state = null;
 let roster = [];
-let authRequired = false;
+let authState = null;
 
 const tokenInput = document.querySelector("#tokenInput");
 const authPanel = document.querySelector("#authPanel");
+const authStatus = document.querySelector("#authStatus");
+const armButton = document.querySelector("#armButton");
+const disarmButton = document.querySelector("#disarmButton");
 const connectionSummary = document.querySelector("#connectionSummary");
 const commandStatus = document.querySelector("#commandStatus");
 const rawCommandInput = document.querySelector("#rawCommandInput");
@@ -27,16 +30,17 @@ const quickCommands = [
 init();
 
 async function init() {
-  tokenInput.value = localStorage.getItem("controlToken") || "";
-  tokenInput.addEventListener("change", () => {
-    localStorage.setItem("controlToken", tokenInput.value);
-  });
+  tokenInput.value = "";
+  tokenInput.placeholder = localStorage.getItem("controlToken")
+    ? "Saved browser token ignored; enter arm token"
+    : "Hardware arm token";
 
   layoutConfig = await apiGet("/api/config");
-  authRequired = layoutConfig.authRequired;
-  authPanel.classList.toggle("hidden", !authRequired);
+  authState = layoutConfig.auth || {};
+  renderAuthPanel();
 
   wireGlobalButtons();
+  wireAuthButtons();
   wireCommandButtons();
   wireForms();
   renderQuickCommands();
@@ -52,6 +56,11 @@ function wireGlobalButtons() {
   document.querySelector("#refreshButton").addEventListener("click", () => sendCommand("<s>", "<T>", "<S>", "<Q>", "<JR>"));
   document.querySelector("#powerOnButton").addEventListener("click", () => sendCommand("<1>"));
   document.querySelector("#powerOffButton").addEventListener("click", () => sendCommand("<0>"));
+}
+
+function wireAuthButtons() {
+  armButton.addEventListener("click", () => armHardware());
+  disarmButton.addEventListener("click", () => disarmHardware());
 }
 
 function wireCommandButtons() {
@@ -194,6 +203,71 @@ function render() {
   renderMessages();
 }
 
+function renderAuthPanel() {
+  if (!authPanel || !authState) return;
+  authPanel.classList.remove("hidden");
+  const hardware = authState.hardware || {};
+  const username = authState.user?.username || "unknown user";
+
+  if (!authState.authenticated) {
+    authStatus.textContent = "Signed out; control writes require projects.lan SSO.";
+    tokenInput.disabled = true;
+    armButton.disabled = true;
+    disarmButton.disabled = true;
+    return;
+  }
+
+  if (hardware.allowed) {
+    authStatus.textContent = hardware.allowlisted
+      ? `Signed in as ${username}; hardware allowed.`
+      : `Signed in as ${username}; hardware armed until ${formatTime(hardware.armedUntil)}.`;
+  } else if (hardware.armConfigured) {
+    authStatus.textContent = `Signed in as ${username}; hardware arm required.`;
+  } else {
+    authStatus.textContent = `Signed in as ${username}; hardware arm token is not configured.`;
+  }
+
+  tokenInput.disabled = !hardware.armConfigured;
+  armButton.disabled = !hardware.armConfigured;
+  disarmButton.disabled = !hardware.armed;
+}
+
+async function armHardware() {
+  armButton.disabled = true;
+  try {
+    const payload = await postJson("/api/hardware-arm", { token: tokenInput.value });
+    authState.hardware = payload.hardware;
+    tokenInput.value = "";
+    renderAuthPanel();
+    setStatus("Hardware armed", "running");
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    armButton.disabled = false;
+    renderAuthPanel();
+  }
+}
+
+async function disarmHardware() {
+  disarmButton.disabled = true;
+  try {
+    const result = await fetch("/api/hardware-arm", {
+      method: "DELETE",
+      headers: authHeaders()
+    });
+    const payload = await result.json();
+    if (!result.ok) throw new Error(payload.error || result.statusText);
+    authState.hardware = payload.hardware;
+    renderAuthPanel();
+    setStatus("Hardware disarmed", "stopped");
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    disarmButton.disabled = false;
+    renderAuthPanel();
+  }
+}
+
 async function loadRoster() {
   const result = await apiGet("/api/roster");
   roster = result.roster;
@@ -324,8 +398,8 @@ function normalizeCommand(command) {
 }
 
 function authHeaders() {
-  if (!authRequired) return {};
-  return { Authorization: `Bearer ${tokenInput.value}` };
+  if (!authState?.csrfToken) return {};
+  return { "X-CSRF-Token": authState.csrfToken };
 }
 
 function getTelemetrySummary(connection) {
@@ -360,6 +434,13 @@ function showError(message) {
   commandStatus.textContent = "Error";
   commandStatus.className = "status-pill error";
   alert(message);
+}
+
+function formatTime(value) {
+  if (!value) return "unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return date.toLocaleTimeString();
 }
 
 function escapeHtml(value) {

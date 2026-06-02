@@ -651,6 +651,13 @@ textarea:focus {
   margin-top: 12px;
 }
 
+.auth-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .hidden {
   display: none;
 }
@@ -857,7 +864,8 @@ code {
   .firmware-grid,
   .command-console,
   .command-strip,
-  .speed-control {
+  .speed-control,
+  .auth-controls {
     grid-template-columns: 1fr;
   }
 
