@@ -47,6 +47,8 @@ spec:
               value: "false"
             - name: AUTO_FLASH
               value: "true"
+            - name: FIRMWARE_STATUS_FILE
+              value: /state/firmware-status.json
             - name: CSB1_WIFI_SSID
               valueFrom:
                 secretKeyRef:

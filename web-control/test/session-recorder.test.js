@@ -147,6 +147,8 @@ test("session APIs export mock operating events without DCC writes from read-onl
       HOST: "127.0.0.1",
       PORT: String(port),
       DCCEX_MOCK: "true",
+      CONTROL_TOKEN: "test-control-token",
+      CONTROL_TOKEN_COMPAT_MODE: "true",
       SESSION_DATA_DIR: directory,
       SESSION_RETENTION_COUNT: "5",
       SESSION_RETENTION_DAYS: "7"
@@ -236,7 +238,10 @@ async function waitForHealth(baseUrl) {
 async function postJson(url, body) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer test-control-token"
+    },
     body: JSON.stringify(body)
   });
   const payload = await response.json();
