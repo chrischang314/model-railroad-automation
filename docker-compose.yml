@@ -17,3 +17,8 @@ services:
       ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-}"
       CONTROL_TOKEN: "${CONTROL_TOKEN:-}"
       CONTROL_TOKEN_COMPAT_MODE: "${CONTROL_TOKEN_COMPAT_MODE:-false}"
+      SESSION_DATA_DIR: "/app/data/sessions"
+      SESSION_RETENTION_COUNT: "${SESSION_RETENTION_COUNT:-10}"
+      SESSION_RETENTION_DAYS: "${SESSION_RETENTION_DAYS:-7}"
+    volumes:
+      - ./web-control/data:/app/data

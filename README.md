@@ -145,7 +145,9 @@ sensor status, timestamped control action feedback, a command log, and stale
 telemetry warnings in the page header. The Control page also has a read-only
 Firmware panel that shows the latest updater provenance artifact: live DCC-EX
 version, expected EXRAIL version/hash, last flash or baseline time, updater
-decision, and sensor setup status.
+decision, and sensor setup status. It also keeps a bounded operating session
+recorder with read-only latest/list/export APIs so a run can be reviewed after
+the fact without adding replay or resend controls.
 The `/health` endpoint also reports the last command-station message age,
 moving train count, active sensors, power state, and automation state.
 `GET /api/firmware-status` returns the same firmware proof as a safe read-only
@@ -159,6 +161,13 @@ status reads remain public.
 ```bash
 docker compose up --build
 ```
+
+Session logs are JSONL files under `SESSION_DATA_DIR`, defaulting to
+`web-control/data/sessions` locally and `/app/data/sessions` in the container.
+Retention defaults to the last 10 sessions or 7 days and can be adjusted with
+`SESSION_RETENTION_COUNT` and `SESSION_RETENTION_DAYS`. The read-only APIs are
+`/api/sessions/latest`, `/api/sessions`, and
+`/api/sessions/<session-id>/export`.
 
 ## License
 

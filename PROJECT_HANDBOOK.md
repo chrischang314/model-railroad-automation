@@ -29,6 +29,12 @@ skipped, successful, warning, and failed runs. The web server reads that file
 through `GET /api/firmware-status` and degrades missing, stale, malformed, or
 failed proof into warning payloads instead of blocking the control page.
 
+The operating session recorder is observational. It appends JSONL events for
+operator actions, DCC-EX transmit/receive traffic, power, turnout, sensor,
+automation, all-stop, emergency-stop, and telemetry stale/recovered transitions.
+It exposes read-only latest/list/export endpoints and a compact Control-page
+panel; it does not replay, resend, resume, or add train-control commands.
+
 ## Operator Safety Model
 
 Use the least disruptive stop that fits the situation:
@@ -55,6 +61,11 @@ default browser authority.
 Firmware provenance is intentionally outside the write/control path. Reading or
 refreshing it must not send DCC-EX commands, start EXRAIL routes, toggle power,
 move turnouts, write decoder CVs, run shell commands, or trigger a flash.
+
+Session files live under `SESSION_DATA_DIR`, default to local ignored runtime
+data, and are bounded by count and age retention. Treat them as diagnostic
+artifacts: useful for incident review, safe to delete during rollback, and not a
+replacement for the live command-station state.
 
 ## Change Rules
 

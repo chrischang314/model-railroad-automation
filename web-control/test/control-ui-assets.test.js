@@ -17,8 +17,14 @@ test("control page includes action status feedback assets", async () => {
 
   assert.match(html, /id="actionStatus"/);
   assert.match(html, /id="actionHistory"/);
+  assert.match(html, /id="sessionState"/);
+  assert.match(html, /id="sessionSummary"/);
+  assert.match(html, /id="sessionRefreshButton"/);
+  assert.match(html, /id="sessionExportLink"/);
+  assert.match(html, /id="sessionEventList"/);
   assert.match(html, /role="status"/);
   assert.match(html, /aria-label="Recent control actions"/);
+  assert.match(html, /aria-label="Recent session events"/);
   assert.match(script, /MAX_ACTION_HISTORY = 6/);
   assert.match(script, /function beginAction/);
   assert.match(script, /function completeAction/);
@@ -29,6 +35,10 @@ test("control page includes action status feedback assets", async () => {
   assert.match(script, /"X-CSRF-Token"/);
   assert.doesNotMatch(script, /Authorization/);
   assert.doesNotMatch(script, /localStorage\.setItem\("controlToken"/);
+  assert.match(script, /function loadSessionPanel/);
+  assert.match(script, /function renderSessionPanel/);
+  assert.match(script, /apiGet\("\/api\/sessions\/latest"\)/);
+  assert.doesNotMatch(script, /post\("\/api\/sessions/);
   assert.match(styles, /\.action-status/);
   assert.match(styles, /\.action-history/);
   assert.match(styles, /\.auth-controls/);
@@ -49,4 +59,6 @@ test("control page includes action status feedback assets", async () => {
   assert.match(script, /function renderFirmwareStatus/);
   assert.match(firmwareView, /function renderFirmwareStatusPanel/);
   assert.match(styles, /\.firmware-status/);
+  assert.match(styles, /\.session-summary/);
+  assert.match(styles, /\.session-events/);
 });

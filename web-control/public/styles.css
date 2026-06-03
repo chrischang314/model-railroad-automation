@@ -251,6 +251,61 @@ button {
   align-self: start;
 }
 
+.session-panel {
+  align-self: start;
+}
+
+.session-summary {
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.session-actions {
+  margin-top: 10px;
+}
+
+.button.disabled {
+  opacity: 0.52;
+  pointer-events: none;
+}
+
+.session-events {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session-events:empty {
+  display: none;
+}
+
+.session-events li {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.session-events time {
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-size: 11px;
+}
+
 .command-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -874,6 +929,10 @@ code {
   }
 
   .action-history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .session-events li {
     grid-template-columns: 1fr;
   }
 

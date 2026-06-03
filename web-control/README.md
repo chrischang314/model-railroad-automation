@@ -71,6 +71,9 @@ Useful environment variables:
 | `TELEMETRY_STALE_MS` | `15000` | Command-station message age before UI and `/health` mark telemetry stale |
 | `FIRMWARE_STATUS_FILE` | `web-control/data/firmware-status.json` | Read-only updater provenance JSON file shown by `/api/firmware-status` |
 | `FIRMWARE_STATUS_STALE_MS` | 7 days | Firmware proof age before the UI reports it stale |
+| `SESSION_DATA_DIR` | `web-control/data/sessions` | JSONL operating session log directory |
+| `SESSION_RETENTION_COUNT` | `10` | Maximum completed session files to keep |
+| `SESSION_RETENTION_DAYS` | `7` | Maximum age of session files to keep |
 
 ## Auth And Hardware Safety
 
@@ -123,6 +126,20 @@ browser UI does not read it from localStorage or send it as authorization.
   including expected EXRAIL version/hash, last flash or baseline time, and
   post-flash sensor setup result. This endpoint is public and read-only; it does
   not send DCC-EX commands or start a firmware build.
+- Operating session recorder: the backend writes structured JSONL events for
+  operator actions, DCC-EX tx/rx messages, power, turnout, sensor, automation,
+  all-stop, emergency-stop, and telemetry stale/recovered transitions. The
+  Control page shows latest status and an export link. Read-only APIs:
+  `/api/sessions/latest`, `/api/sessions`, and
+  `/api/sessions/<session-id>/export`.
+
+## Session Data
+
+Local `docker compose` mounts `./web-control/data` to `/app/data` so session
+exports survive container restarts. The directory is ignored by git. To roll
+back the recorder, revert the code/docs change and remove the JSONL files or
+PVC contents if they are no longer useful. Session files are diagnostics, not a
+source of truth for train state.
 
 ## Programming Workbench
 

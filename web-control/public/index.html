@@ -65,6 +65,19 @@
         </div>
       </section>
 
+      <section class="surface session-panel">
+        <div class="panel-heading">
+          <h2>Session</h2>
+          <span id="sessionState" class="status-pill unknown">Unknown</span>
+        </div>
+        <div id="sessionSummary" class="session-summary" role="status" aria-live="polite">Loading...</div>
+        <div class="button-row session-actions">
+          <button id="sessionRefreshButton" class="button ghost" type="button">Refresh Session</button>
+          <a id="sessionExportLink" class="button secondary disabled" href="#" aria-disabled="true">Export</a>
+        </div>
+        <ol id="sessionEventList" class="session-events" aria-label="Recent session events"></ol>
+      </section>
+
       <section class="surface">
         <div class="panel-heading">
           <h2>Sensors</h2>

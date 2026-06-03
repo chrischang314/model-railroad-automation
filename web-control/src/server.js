@@ -13,6 +13,12 @@ const {
   getUserBySessionToken,
   normalizeUsername
 } = require("./shared-auth");
+const {
+  DEFAULT_SESSION_RETENTION_COUNT,
+  DEFAULT_SESSION_RETENTION_DAYS,
+  SessionRecorder,
+  normalizePositiveInteger
+} = require("./session-recorder");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -29,6 +35,15 @@ const CSRF_SECRET = process.env.CSRF_SECRET || crypto.randomBytes(32).toString("
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const ROSTER_FILE = process.env.ROSTER_FILE || path.join(__dirname, "..", "data", "roster.json");
 const FIRMWARE_STATUS_FILE = process.env.FIRMWARE_STATUS_FILE || DEFAULT_STATUS_FILE;
+const SESSION_DATA_DIR = process.env.SESSION_DATA_DIR || path.join(__dirname, "..", "data", "sessions");
+const SESSION_RETENTION_COUNT = normalizePositiveInteger(
+  process.env.SESSION_RETENTION_COUNT,
+  DEFAULT_SESSION_RETENTION_COUNT
+);
+const SESSION_RETENTION_DAYS = normalizePositiveInteger(
+  process.env.SESSION_RETENTION_DAYS,
+  DEFAULT_SESSION_RETENTION_DAYS
+);
 const configuredTelemetryStaleMs = Number(process.env.TELEMETRY_STALE_MS || DEFAULT_TELEMETRY_STALE_MS);
 const TELEMETRY_STALE_MS =
   Number.isFinite(configuredTelemetryStaleMs) && configuredTelemetryStaleMs > 0
@@ -40,20 +55,34 @@ const FIRMWARE_STATUS_STALE_MS =
     ? configuredFirmwareStaleMs
     : DEFAULT_STALE_MS;
 
+const recorder = new SessionRecorder({
+  directory: SESSION_DATA_DIR,
+  maxSessions: SESSION_RETENTION_COUNT,
+  maxAgeDays: SESSION_RETENTION_DAYS,
+  metadata: {
+    dccTarget: { host: DCCEX_HOST, port: DCCEX_PORT, mock: DCCEX_MOCK }
+  }
+});
+
 const dcc = new DccExClient({
   host: DCCEX_HOST,
   port: DCCEX_PORT,
   mock: DCCEX_MOCK,
-  layout
+  layout,
+  recorder
 });
 
 const sseClients = new Set();
 const hardwareArms = new Map();
 dcc.on("state", (state) => {
+  recorder.observeState(state, { staleAfterMs: TELEMETRY_STALE_MS });
   const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
   for (const response of sseClients) response.write(payload);
 });
 dcc.start();
+const telemetryWatchTimer = setInterval(() => {
+  recorder.observeState(dcc.getState(), { staleAfterMs: TELEMETRY_STALE_MS });
+}, Math.min(Math.max(1000, Math.floor(TELEMETRY_STALE_MS / 2)), 5000));
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -102,8 +131,34 @@ async function handleApi(request, response) {
       auth: buildAuthPayload(authContext),
       dccTarget: { host: DCCEX_HOST, port: DCCEX_PORT, mock: DCCEX_MOCK },
       telemetry: { staleAfterMs: TELEMETRY_STALE_MS },
-      firmwareStatus: { staleAfterMs: FIRMWARE_STATUS_STALE_MS }
+      firmwareStatus: { staleAfterMs: FIRMWARE_STATUS_STALE_MS },
+      sessions: {
+        retentionCount: SESSION_RETENTION_COUNT,
+        retentionDays: SESSION_RETENTION_DAYS
+      }
     });
+  }
+
+  if (request.method === "GET" && pathname === "/api/sessions") {
+    await recorder.flush();
+    return sendJson(response, 200, await recorder.listSessions());
+  }
+
+  if (request.method === "GET" && pathname === "/api/sessions/latest") {
+    await recorder.flush();
+    return sendJson(response, 200, await recorder.getLatestSession());
+  }
+
+  const sessionExportMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/export$/);
+  if (request.method === "GET" && sessionExportMatch) {
+    await recorder.flush();
+    const sessionId = decodeURIComponent(sessionExportMatch[1]);
+    const raw = await recorder.exportSession(sessionId);
+    response.writeHead(200, {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${sessionId}.jsonl"`
+    });
+    return response.end(raw);
   }
 
   if (request.method === "GET" && pathname === "/api/state") {
@@ -138,7 +193,8 @@ async function handleApi(request, response) {
 
   if (request.method === "POST" && pathname === "/api/command") {
     const body = await readJson(request);
-    return sendCommand(response, normalizeCommand(body.command));
+    const command = normalizeCommand(body.command);
+    return sendCommand(response, command, actionContext(request, "raw-command", "Raw DCC command", { command }));
   }
 
   if (request.method === "POST" && pathname === "/api/commands") {
@@ -147,13 +203,22 @@ async function handleApi(request, response) {
       return sendJson(response, 400, { error: "commands must contain 1 to 20 commands" });
     }
 
+    const commands = body.commands.map((command) => normalizeCommand(command));
+    const context = actionContext(request, "raw-command-batch", "Raw DCC command batch", {
+      commandCount: commands.length,
+      commands
+    });
+    recordOperatorAction(context);
+
     try {
       const results = [];
-      for (const command of body.commands) {
-        results.push(await dcc.send(normalizeCommand(command)));
+      for (const command of commands) {
+        results.push(await dcc.send(command));
       }
+      recordOperatorResult(context, "success", { resultCount: results.length });
       return sendJson(response, 200, { ok: true, results });
     } catch (error) {
+      recordOperatorResult(context, "error", { error: error.message });
       return sendJson(response, 503, { error: error.message });
     }
   }
@@ -167,6 +232,10 @@ async function handleApi(request, response) {
     else roster[index] = entry;
     roster.sort((left, right) => Number(left.address) - Number(right.address));
     await writeRoster(roster);
+    recordOperatorAction(actionContext(request, "roster.save", "Save roster entry", {
+      address: entry.address,
+      name: entry.name
+    }));
     return sendJson(response, 200, { ok: true, roster });
   }
 
@@ -175,23 +244,40 @@ async function handleApi(request, response) {
     const address = Number(rosterMatch[1]);
     const roster = (await readRoster()).filter((item) => Number(item.address) !== address);
     await writeRoster(roster);
+    recordOperatorAction(actionContext(request, "roster.delete", "Delete roster entry", { address }));
     return sendJson(response, 200, { ok: true, roster });
   }
 
   if (request.method === "POST" && pathname === "/api/automation/start") {
-    return sendCommand(response, `</START ${layout.automation.startRoute}>`);
+    return sendCommand(
+      response,
+      `</START ${layout.automation.startRoute}>`,
+      actionContext(request, "automation.start", "Start Shuttle", {
+        route: layout.automation.startRoute
+      }, "automation.start_requested")
+    );
   }
 
   if (request.method === "POST" && pathname === "/api/automation/stop") {
-    return sendCommand(response, `</START ${layout.automation.gracefulStopRoute}>`);
+    return sendCommand(
+      response,
+      `</START ${layout.automation.gracefulStopRoute}>`,
+      actionContext(request, "automation.graceful-stop", "Graceful Stop", {
+        route: layout.automation.gracefulStopRoute
+      }, "automation.graceful_stop_requested")
+    );
   }
 
   if (request.method === "POST" && pathname === "/api/emergency-stop") {
+    const context = actionContext(request, "emergency-stop", "Emergency Stop", {}, "automation.emergency_stop_requested");
+    recordOperatorAction(context);
     try {
       await dcc.send("</KILL ALL>");
       await dcc.send("<!>");
+      recordOperatorResult(context, "success", { commandCount: 2 });
       return sendJson(response, 200, { ok: true });
     } catch (error) {
+      recordOperatorResult(context, "error", { error: error.message });
       return sendJson(response, 503, { error: error.message });
     }
   }
@@ -201,7 +287,11 @@ async function handleApi(request, response) {
     if (body.state !== "on" && body.state !== "off") {
       return sendJson(response, 400, { error: "state must be on or off" });
     }
-    return sendCommand(response, body.state === "on" ? "<1>" : "<0>");
+    return sendCommand(
+      response,
+      body.state === "on" ? "<1>" : "<0>",
+      actionContext(request, "power.set", `Power ${body.state}`, { state: body.state })
+    );
   }
 
   const turnoutMatch = pathname.match(/^\/api\/turnouts\/(\d+)$/);
@@ -212,7 +302,14 @@ async function handleApi(request, response) {
     if (body.state !== "thrown" && body.state !== "closed") {
       return sendJson(response, 400, { error: "state must be thrown or closed" });
     }
-    return sendCommand(response, `<T ${turnout.id} ${body.state === "thrown" ? 1 : 0}>`);
+    return sendCommand(
+      response,
+      `<T ${turnout.id} ${body.state === "thrown" ? 1 : 0}>`,
+      actionContext(request, "turnout.set", `${turnout.label} ${body.state}`, {
+        turnoutId: turnout.id,
+        state: body.state
+      })
+    );
   }
 
   const throttleMatch = pathname.match(/^\/api\/trains\/(\d+)\/throttle$/);
@@ -228,7 +325,15 @@ async function handleApi(request, response) {
     if (body.direction !== "forward" && body.direction !== "reverse") {
       return sendJson(response, 400, { error: "direction must be forward or reverse" });
     }
-    return sendCommand(response, `<t ${train.address} ${speed} ${body.direction === "forward" ? 1 : 0}>`);
+    return sendCommand(
+      response,
+      `<t ${train.address} ${speed} ${body.direction === "forward" ? 1 : 0}>`,
+      actionContext(request, "train.throttle", `${train.label} throttle`, {
+        trainAddress: train.address,
+        speed,
+        direction: body.direction
+      })
+    );
   }
 
   const functionMatch = pathname.match(/^\/api\/trains\/(\d+)\/function$/);
@@ -244,29 +349,45 @@ async function handleApi(request, response) {
     if (typeof body.state !== "boolean") {
       return sendJson(response, 400, { error: "state must be boolean" });
     }
-    return sendCommand(response, `<F ${train.address} ${fn} ${body.state ? 1 : 0}>`);
+    return sendCommand(
+      response,
+      `<F ${train.address} ${fn} ${body.state ? 1 : 0}>`,
+      actionContext(request, "train.function", `${train.label} F${fn}`, {
+        trainAddress: train.address,
+        function: fn,
+        state: body.state
+      })
+    );
   }
 
   if (request.method === "POST" && pathname === "/api/trains/stop-all") {
+    const context = actionContext(request, "trains.stop-all", "All Stop", {}, "automation.all_stop_requested");
+    recordOperatorAction(context);
     try {
       const commands = buildStopAllTrainCommands(layout, dcc.getState());
       const results = [];
       for (const command of commands) {
         results.push(await dcc.send(command));
       }
+      recordOperatorResult(context, "success", { commandCount: commands.length });
       return sendJson(response, 200, { ok: true, commands, results });
     } catch (error) {
+      recordOperatorResult(context, "error", { error: error.message });
       return sendJson(response, 503, { error: error.message });
     }
   }
 
   if (request.method === "POST" && pathname === "/api/refresh") {
+    const context = actionContext(request, "state.refresh", "Refresh state", { commandCount: 3 });
+    recordOperatorAction(context);
     try {
       await dcc.send("<s>");
       await dcc.send("<T>");
       await dcc.send("<Q>");
+      recordOperatorResult(context, "success", { commandCount: 3 });
       return sendJson(response, 200, { ok: true });
     } catch (error) {
+      recordOperatorResult(context, "error", { error: error.message });
       return sendJson(response, 503, { error: error.message });
     }
   }
@@ -274,13 +395,53 @@ async function handleApi(request, response) {
   return sendJson(response, 404, { error: "Not found" });
 }
 
-async function sendCommand(response, command) {
+async function sendCommand(response, command, context = null) {
+  recordOperatorAction(context);
   try {
     const result = await dcc.send(command);
+    recordOperatorResult(context, "success", { command: result.command, mock: Boolean(result.mock) });
     sendJson(response, 200, { ok: true, ...result });
   } catch (error) {
+    recordOperatorResult(context, "error", { command, error: error.message });
     sendJson(response, 503, { error: error.message });
   }
+}
+
+function actionContext(request, action, label, details = {}, eventType = null) {
+  const url = new URL(request.url, `http://${request.headers.host}`);
+  return {
+    action,
+    label,
+    eventType,
+    method: request.method,
+    path: url.pathname,
+    details
+  };
+}
+
+function recordOperatorAction(context) {
+  if (!context) return;
+  const payload = {
+    action: context.action,
+    label: context.label,
+    method: context.method,
+    path: context.path,
+    ...context.details
+  };
+  recorder.record("operator.action", payload);
+  if (context.eventType) recorder.record(context.eventType, payload);
+}
+
+function recordOperatorResult(context, status, details = {}) {
+  if (!context) return;
+  recorder.record("operator.result", {
+    action: context.action,
+    label: context.label,
+    method: context.method,
+    path: context.path,
+    status,
+    ...details
+  });
 }
 
 function normalizeCommand(value) {
@@ -594,6 +755,10 @@ function contentType(filePath) {
 }
 
 function shutdown() {
+  clearInterval(telemetryWatchTimer);
+  recorder.record("session.stopped", { reason: "process shutdown" });
   dcc.stop();
-  server.close(() => process.exit(0));
+  recorder.flush().finally(() => {
+    server.close(() => process.exit(0));
+  });
 }

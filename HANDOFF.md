@@ -1,13 +1,35 @@
 # Model Railroad Web-Control Handoff
 
-Last updated: 2026-06-02
-Current branch: `codex/projects-lan-sso-model-railroad`
+Last updated: 2026-06-03
+Current branch: `codex-cleanup-railroad-2026-06-03`
 
 ## Current Change
 
-This change refactors web-control write authorization around projects.lan SSO
-and a separate hardware safety gate. It does not change EXRAIL or run live
-movement tests.
+This merged cleanup keeps the projects.lan SSO write-authorization behavior and
+adds the Persistent Operating Session Recorder. The recorder is intentionally
+observational: it records and exports what happened during a run, but does not
+add replay, resend, resume, or new train-control commands. It does not change
+EXRAIL or run live movement tests.
+
+Session recorder pieces:
+
+- `web-control/src/session-recorder.js` writes bounded JSONL session files,
+  redacts sensitive-looking values, reads malformed/missing files with warnings,
+  and prunes by count/age.
+- `web-control/src/dcc-client.js` forwards DCC-EX tx/rx log entries to the
+  recorder while avoiding double-counting real `send()` writes.
+- `web-control/src/server.js` records operator action/result events, explicit
+  start/stop/all-stop/emergency-stop events, power/turnout/sensor/automation
+  transitions, and telemetry stale/recovered windows. It exposes read-only
+  `/api/sessions/latest`, `/api/sessions`, and
+  `/api/sessions/:id/export`.
+- `web-control/public/index.html`, `app.js`, and `styles.css` add a compact
+  Control-page session panel and export link. Refreshing the panel uses GET
+  endpoints only and does not send DCC-EX commands.
+- `web-control/Dockerfile` and `docker-compose.yml` set `/app/data/sessions`
+  and mount `./web-control/data` for local persistence.
+
+SSO and hardware safety pieces:
 
 - `web-control/src/shared-auth.js` validates the `projects_lan_session` cookie
   by hashing it and reading `auth_sessions` joined to `users` in
@@ -70,9 +92,17 @@ file and confirm the Control page renders current, missing, malformed, and
 stale states. Fetching `/api/firmware-status` and refreshing the Firmware panel
 must not add DCC-EX transmit messages to `/api/state`.
 
+Then click Refresh, Power On, All Stop, a turnout action, and a train stop.
+Confirm the status strip changes from sending to a success message, the recent
+action history stays bounded, and failures show the red error state.
+For the recorder, confirm `GET /api/sessions/latest` returns HTTP 200 with a
+session payload, the Control page shows the Session panel, the Export link
+returns JSONL, and refreshing/exporting session data does not add new DCC-EX
+`tx` events.
+
 ## Deployment Notes
 
-This branch has not been pushed, merged, or deployed.
+This cleanup branch has not been deployed.
 
 The Kubernetes app is defined in
 `C:\Users\chris\Projects\container-orchestrator\apps\model-railroad-automation\values.yaml`
@@ -97,7 +127,14 @@ After deploy, verify:
 - Hardware commands fail until the signed-in user is allowlisted or armed.
 - Loading and refreshing firmware status sends no train, turnout, power, CV,
   raw command, or flash action.
+- `GET http://modelrailroadautomation.lan/api/sessions/latest`
+- the Control-page Session panel
+- refreshing/exporting sessions does not add new DCC-EX tx events
 
-Rollback is a normal revert of the updater status writer, web-control endpoint,
-UI panel, and container-orchestrator status-path mount. Leave
-`last-flashed.sha256` untouched.
+After publishing `main`, add/verify a writable `/app/data` path in
+`container-orchestrator/apps/model-railroad-automation/values.yaml` before
+redeploying through `container-orchestrator`.
+
+Rollback is a code revert plus deletion of session JSONL files or PVC contents
+if desired. Do not touch `dcc-ex/`, sensor declarations, decoder CVs, or
+firmware provenance artifacts for recorder rollback.
