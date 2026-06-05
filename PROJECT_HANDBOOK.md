@@ -45,18 +45,10 @@ Use the least disruptive stop that fits the situation:
   leaving EXRAIL alive.
 - Emergency Stop sends `</KILL ALL>` and `<!>` for urgent shutdown.
 
-The browser safety contract has two gates. `projects_lan_session` answers who
-the operator is by validating the cookie against shared `auth_sessions` and
-`users` rows. A separate hardware gate answers whether that signed-in operator
-may send physical commands right now: either the user appears in
-`HARDWARE_CONTROL_ALLOWLIST`, or they arm control through
-`POST /api/hardware-arm` with `HARDWARE_ARM_TOKEN`.
-
-Cookie-backed `POST` and `DELETE` requests must pass the same-origin
-`Origin`/`Referer` guard and include the `X-CSRF-Token` from `GET /api/config`.
-Read-only status and firmware endpoints stay public. `CONTROL_TOKEN` is only an
-explicit compatibility path when `CONTROL_TOKEN_COMPAT_MODE=true`; it is not a
-default browser authority.
+All write/control APIs are protected by `CONTROL_TOKEN` when that environment
+variable is set. The deployed browser route currently sets
+`ALLOW_UNAUTHENTICATED_CONTROL=true`, so railroad control is governed by who can
+reach the website rather than by shared SSO or per-user accounts.
 
 Firmware provenance is intentionally outside the write/control path. Reading or
 refreshing it must not send DCC-EX commands, start EXRAIL routes, toggle power,

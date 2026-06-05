@@ -205,12 +205,16 @@ function render() {
 
 function renderAuthPanel() {
   if (!authPanel || !authState) return;
+  if (!layoutConfig?.authRequired) {
+    authPanel.classList.add("hidden");
+    return;
+  }
   authPanel.classList.remove("hidden");
   const hardware = authState.hardware || {};
   const username = authState.user?.username || "unknown user";
 
   if (!authState.authenticated) {
-    authStatus.textContent = "Signed out; control writes require projects.lan SSO.";
+    authStatus.textContent = "Control writes are locked by this deployment.";
     tokenInput.disabled = true;
     armButton.disabled = true;
     disarmButton.disabled = true;
