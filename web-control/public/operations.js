@@ -13,6 +13,7 @@ const commandStatus = document.querySelector("#commandStatus");
 const rawCommandInput = document.querySelector("#rawCommandInput");
 const messageLog = document.querySelector("#messageLog");
 const rosterTable = document.querySelector("#rosterTable");
+const API_BASE_PATH = detectApiBasePath("operations.js");
 
 const quickCommands = [
   ["Status", "<s>"],
@@ -167,7 +168,7 @@ function wireForms() {
 }
 
 function connectEvents() {
-  const events = new EventSource("/api/events");
+  const events = new EventSource(apiPath("/api/events"));
   events.addEventListener("state", (event) => {
     state = JSON.parse(event.data);
     render();
@@ -255,7 +256,7 @@ async function armHardware() {
 async function disarmHardware() {
   disarmButton.disabled = true;
   try {
-    const result = await fetch("/api/hardware-arm", {
+    const result = await fetch(apiPath("/api/hardware-arm"), {
       method: "DELETE",
       headers: authHeaders()
     });
@@ -341,7 +342,7 @@ function useCab(address) {
 }
 
 async function deleteRosterEntry(address) {
-  const result = await fetch(`/api/roster/${address}`, {
+  const result = await fetch(apiPath(`/api/roster/${address}`), {
     method: "DELETE",
     headers: authHeaders()
   });
@@ -376,7 +377,7 @@ async function sendCommand(...commands) {
 }
 
 async function postJson(path, body) {
-  const response = await fetch(path, {
+  const response = await fetch(apiPath(path), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -390,9 +391,33 @@ async function postJson(path, body) {
 }
 
 async function apiGet(path) {
-  const response = await fetch(path);
+  const response = await fetch(apiPath(path));
   if (!response.ok) throw new Error(response.statusText);
   return response.json();
+}
+
+function apiPath(path) {
+  const cleanPath = String(path || "");
+  return `${API_BASE_PATH}${cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`}`;
+}
+
+function detectApiBasePath(scriptName) {
+  const proxyPrefix = "/railroad-automation";
+  const scriptSrc = document.currentScript?.src || "";
+
+  try {
+    const scriptPath = new URL(scriptSrc, window.location.href).pathname;
+    const scriptSuffix = `/${scriptName}`;
+    if (scriptPath.endsWith(scriptSuffix)) {
+      const basePath = scriptPath.slice(0, -scriptSuffix.length);
+      if (basePath && basePath !== "/") return basePath;
+    }
+  } catch {
+    // Fall back to the page path below.
+  }
+
+  const pagePath = window.location.pathname.replace(/\/+$/, "");
+  return pagePath === proxyPrefix || pagePath.startsWith(`${proxyPrefix}/`) ? proxyPrefix : "";
 }
 
 function normalizeCommand(command) {

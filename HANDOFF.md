@@ -48,6 +48,11 @@ SSO and hardware safety pieces:
   longer sends localStorage tokens as authorization.
 - `web-control/public/app.js` and `web-control/public/operations.js` now send
   only `X-CSRF-Token` on writes and use the token input only for hardware arm.
+- The browser scripts derive their API base path from the loaded script URL or
+  the `/railroad-automation` page path. Keep this behavior so
+  `http://projects.lan/railroad-automation/` sends writes to
+  `/railroad-automation/api/...` while direct `modelrailroadautomation.lan`
+  access still uses `/api/...`.
 - `web-control/Dockerfile` now uses Node 24, and `web-control/package.json`
   requires Node >=22.5 because `node:sqlite` is used.
 

@@ -31,6 +31,11 @@ test("control page includes action status feedback assets", async () => {
   assert.match(script, /function renderActionStatus/);
   assert.match(script, /function setActionStatus/);
   assert.match(script, /function actionSuccessMessage/);
+  assert.match(script, /const API_BASE_PATH = detectApiBasePath\("app\.js"\)/);
+  assert.match(script, /function apiPath/);
+  assert.match(script, /new EventSource\(apiPath\("\/api\/events"\)\)/);
+  assert.match(script, /fetch\(apiPath\(path\), fetchOptions\)/);
+  assert.match(script, /sessionExportLink\.href = apiPath/);
   assert.match(script, /function armHardware/);
   assert.match(script, /"X-CSRF-Token"/);
   assert.doesNotMatch(script, /Authorization/);
@@ -49,6 +54,10 @@ test("control page includes action status feedback assets", async () => {
   assert.match(operationsHtml, /id="armButton"/);
   assert.match(operationsHtml, /id="disarmButton"/);
   assert.match(operationsScript, /function armHardware/);
+  assert.match(operationsScript, /const API_BASE_PATH = detectApiBasePath\("operations\.js"\)/);
+  assert.match(operationsScript, /new EventSource\(apiPath\("\/api\/events"\)\)/);
+  assert.match(operationsScript, /fetch\(apiPath\(path\), \{/);
+  assert.doesNotMatch(operationsScript, /fetch\(["'`]\/api\//);
   assert.match(operationsScript, /"X-CSRF-Token"/);
   assert.doesNotMatch(operationsScript, /Authorization/);
   assert.doesNotMatch(operationsScript, /localStorage\.setItem\("controlToken"/);

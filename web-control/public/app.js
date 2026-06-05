@@ -28,6 +28,7 @@ const trainList = document.querySelector("#trainList");
 const messageLog = document.querySelector("#messageLog");
 const recentActions = [];
 const MAX_ACTION_HISTORY = 6;
+const API_BASE_PATH = detectApiBasePath("app.js");
 
 init();
 
@@ -78,7 +79,7 @@ function bindAction(selector, label, path, body = {}) {
 }
 
 function connectEvents() {
-  const events = new EventSource("/api/events");
+  const events = new EventSource(apiPath("/api/events"));
   events.addEventListener("state", (event) => {
     state = JSON.parse(event.data);
     render();
@@ -406,7 +407,7 @@ function setSessionExport(sessionId) {
     return;
   }
 
-  sessionExportLink.href = `/api/sessions/${encodeURIComponent(sessionId)}/export`;
+  sessionExportLink.href = apiPath(`/api/sessions/${encodeURIComponent(sessionId)}/export`);
   sessionExportLink.classList.remove("disabled");
   sessionExportLink.setAttribute("aria-disabled", "false");
 }
@@ -439,16 +440,40 @@ async function requestJson(path, options = {}) {
     fetchOptions.body = JSON.stringify(options.body);
   }
 
-  const response = await fetch(path, fetchOptions);
+  const response = await fetch(apiPath(path), fetchOptions);
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || response.statusText);
   return payload;
 }
 
 async function apiGet(path) {
-  const response = await fetch(path);
+  const response = await fetch(apiPath(path));
   if (!response.ok) throw new Error(response.statusText);
   return response.json();
+}
+
+function apiPath(path) {
+  const cleanPath = String(path || "");
+  return `${API_BASE_PATH}${cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`}`;
+}
+
+function detectApiBasePath(scriptName) {
+  const proxyPrefix = "/railroad-automation";
+  const scriptSrc = document.currentScript?.src || "";
+
+  try {
+    const scriptPath = new URL(scriptSrc, window.location.href).pathname;
+    const scriptSuffix = `/${scriptName}`;
+    if (scriptPath.endsWith(scriptSuffix)) {
+      const basePath = scriptPath.slice(0, -scriptSuffix.length);
+      if (basePath && basePath !== "/") return basePath;
+    }
+  } catch {
+    // Fall back to the page path below.
+  }
+
+  const pagePath = window.location.pathname.replace(/\/+$/, "");
+  return pagePath === proxyPrefix || pagePath.startsWith(`${proxyPrefix}/`) ? proxyPrefix : "";
 }
 
 function authHeaders() {

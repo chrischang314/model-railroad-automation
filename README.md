@@ -157,6 +157,10 @@ Write/control routes require a valid projects.lan `projects_lan_session`
 validated against the shared auth database. Physical hardware commands also
 require a configured hardware arm token or user allowlist, while firmware and
 status reads remain public.
+When the same UI is served through the launchpad at
+`http://projects.lan/railroad-automation/`, browser API, event-stream, and
+session-export requests keep that `/railroad-automation` prefix so control
+actions still reach the railroad backend instead of the launchpad server.
 
 ```bash
 docker compose up --build
