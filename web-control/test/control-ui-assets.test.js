@@ -31,8 +31,10 @@ test("control page includes action status feedback assets", async () => {
   assert.match(script, /function renderActionStatus/);
   assert.match(script, /function setActionStatus/);
   assert.match(script, /function actionSuccessMessage/);
+  assert.match(script, /const PATH_SEPARATOR = String\.fromCharCode\(47\)/);
   assert.match(script, /const API_BASE_PATH = detectApiBasePath\("app\.js"\)/);
   assert.match(script, /function apiPath/);
+  assert.match(script, /normalizedPath\.startsWith\(`\$\{API_BASE_PATH\}\$\{PATH_SEPARATOR\}`\)/);
   assert.match(script, /new EventSource\(apiPath\("\/api\/events"\)\)/);
   assert.match(script, /fetch\(apiPath\(path\), fetchOptions\)/);
   assert.match(script, /sessionExportLink\.href = apiPath/);
@@ -54,6 +56,7 @@ test("control page includes action status feedback assets", async () => {
   assert.match(operationsHtml, /id="armButton"/);
   assert.match(operationsHtml, /id="disarmButton"/);
   assert.match(operationsScript, /function armHardware/);
+  assert.match(operationsScript, /const PATH_SEPARATOR = String\.fromCharCode\(47\)/);
   assert.match(operationsScript, /const API_BASE_PATH = detectApiBasePath\("operations\.js"\)/);
   assert.match(operationsScript, /new EventSource\(apiPath\("\/api\/events"\)\)/);
   assert.match(operationsScript, /fetch\(apiPath\(path\), \{/);

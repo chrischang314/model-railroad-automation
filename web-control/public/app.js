@@ -28,6 +28,7 @@ const trainList = document.querySelector("#trainList");
 const messageLog = document.querySelector("#messageLog");
 const recentActions = [];
 const MAX_ACTION_HISTORY = 6;
+const PATH_SEPARATOR = String.fromCharCode(47);
 const API_BASE_PATH = detectApiBasePath("app.js");
 
 init();
@@ -454,19 +455,24 @@ async function apiGet(path) {
 
 function apiPath(path) {
   const cleanPath = String(path || "");
-  return `${API_BASE_PATH}${cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`}`;
+  const normalizedPath = cleanPath.startsWith(PATH_SEPARATOR) ? cleanPath : `${PATH_SEPARATOR}${cleanPath}`;
+  if (!API_BASE_PATH) return normalizedPath;
+  if (normalizedPath === API_BASE_PATH || normalizedPath.startsWith(`${API_BASE_PATH}${PATH_SEPARATOR}`)) {
+    return normalizedPath;
+  }
+  return `${API_BASE_PATH}${normalizedPath}`;
 }
 
 function detectApiBasePath(scriptName) {
-  const proxyPrefix = "/railroad-automation";
+  const proxyPrefix = `${PATH_SEPARATOR}railroad-automation`;
   const scriptSrc = document.currentScript?.src || "";
 
   try {
     const scriptPath = new URL(scriptSrc, window.location.href).pathname;
-    const scriptSuffix = `/${scriptName}`;
+    const scriptSuffix = `${PATH_SEPARATOR}${scriptName}`;
     if (scriptPath.endsWith(scriptSuffix)) {
       const basePath = scriptPath.slice(0, -scriptSuffix.length);
-      if (basePath && basePath !== "/") return basePath;
+      if (basePath && basePath !== PATH_SEPARATOR) return basePath;
     }
   } catch {
     // Fall back to the page path below.
