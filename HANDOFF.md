@@ -1,15 +1,15 @@
 # Model Railroad Web-Control Handoff
 
-Last updated: 2026-06-03
-Current branch: `codex-cleanup-railroad-2026-06-03`
+Last updated: 2026-06-06
+Current branch: `main`
 
 ## Current Change
 
-This merged cleanup keeps the projects.lan SSO write-authorization behavior and
-adds the Persistent Operating Session Recorder. The recorder is intentionally
-observational: it records and exports what happened during a run, but does not
-add replay, resend, resume, or new train-control commands. It does not change
-EXRAIL or run live movement tests.
+This handoff covers the current web-control app on `main`: direct LAN/browser
+control access plus the Persistent Operating Session Recorder. The recorder is
+intentionally observational: it records and exports what happened during a run,
+but does not add replay, resend, resume, or new train-control commands. It does
+not change EXRAIL or run live movement tests.
 
 Session recorder pieces:
 
@@ -29,25 +29,23 @@ Session recorder pieces:
 - `web-control/Dockerfile` and `docker-compose.yml` set `/app/data/sessions`
   and mount `./web-control/data` for local persistence.
 
-SSO and hardware safety pieces:
+Browser command access:
 
-- `web-control/src/shared-auth.js` validates the `projects_lan_session` cookie
-  by hashing it and reading `auth_sessions` joined to `users` in
-  `SHARED_AUTH_DB`.
 - `web-control/src/server.js` keeps `/health`, `GET /api/state`,
   `GET /api/roster`, `GET /api/events`, and `GET /api/firmware-status` public.
-  Unsafe writes require SSO; cookie-backed `POST`/`DELETE` also require the
-  same-origin guard and the `X-CSRF-Token` from `GET /api/config`.
-- Physical hardware commands require SSO plus `HARDWARE_CONTROL_ALLOWLIST` or a
-  short-lived arm created by `POST /api/hardware-arm` with
-  `HARDWARE_ARM_TOKEN`.
-- Roster metadata writes and `/api/refresh` require SSO plus CSRF, but not the
-  hardware arm gate.
-- `CONTROL_TOKEN` remains only for explicit compatibility mode:
-  set both `CONTROL_TOKEN` and `CONTROL_TOKEN_COMPAT_MODE=true`. The browser no
-  longer sends localStorage tokens as authorization.
+- With real hardware (`DCCEX_MOCK=false`), write/control APIs fail closed unless
+  `CONTROL_TOKEN` is configured or `ALLOW_UNAUTHENTICATED_CONTROL=true` is set.
+- The current Kubernetes deployment uses `ALLOW_UNAUTHENTICATED_CONTROL=true`,
+  so projects.lan SSO, per-user accounts, CSRF tokens, and hardware arm tokens
+  are not required. A generic visitor who can reach
+  `http://modelrailroadautomation.lan/` or
+  `http://projects.lan/railroad-automation/` can send DCC-EX commands directly.
+- To require a token again, remove `ALLOW_UNAUTHENTICATED_CONTROL`, configure
+  `CONTROL_TOKEN`, and redeploy. The browser will then include the token on
+  write/control requests.
 - `web-control/public/app.js` and `web-control/public/operations.js` now send
-  only `X-CSRF-Token` on writes and use the token input only for hardware arm.
+  API requests through the detected direct or proxied base path. Their auth
+  panels stay hidden when `/api/config` reports `authRequired: false`.
 - The browser scripts derive their API base path from the loaded script URL or
   the `/railroad-automation` page path. Keep this behavior so
   `http://projects.lan/railroad-automation/` sends writes to
@@ -107,7 +105,8 @@ returns JSONL, and refreshing/exporting session data does not add new DCC-EX
 
 ## Deployment Notes
 
-This cleanup branch has not been deployed.
+The current `main` image has been deployed to Kubernetes and verified on the
+direct LAN route and the projects.lan proxied route.
 
 The Kubernetes app is defined in
 `C:\Users\chris\Projects\container-orchestrator\apps\model-railroad-automation\values.yaml`
@@ -126,10 +125,11 @@ kubectl rollout status deployment/model-railroad-automation-web-control -n defau
 After deploy, verify:
 
 - `http://modelrailroadautomation.lan/api/firmware-status` returns HTTP 200.
-- The Control page renders the Firmware panel and operator auth/arm status.
-- Signed-in unsafe browser writes include `X-CSRF-Token` and pass same-origin
-  checks.
-- Hardware commands fail until the signed-in user is allowlisted or armed.
+- The Control page renders the Firmware panel.
+- `GET /api/config` reports `authRequired: false` and
+  `authConfigured: false` when `ALLOW_UNAUTHENTICATED_CONTROL=true` is active.
+- Anonymous safe write checks such as `POST /api/refresh` return HTTP 200 on
+  both direct and proxied routes without cookies, SSO, or a bearer token.
 - Loading and refreshing firmware status sends no train, turnout, power, CV,
   raw command, or flash action.
 - `GET http://modelrailroadautomation.lan/api/sessions/latest`

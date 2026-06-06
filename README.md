@@ -153,10 +153,12 @@ moving train count, active sensors, power state, and automation state.
 `GET /api/firmware-status` returns the same firmware proof as a safe read-only
 JSON endpoint; missing, stale, failed, or malformed proof files are warnings
 instead of web server failures.
-Write/control routes require a valid projects.lan `projects_lan_session`
-validated against the shared auth database. Physical hardware commands also
-require a configured hardware arm token or user allowlist, while firmware and
-status reads remain public.
+Read-only status and firmware endpoints stay public. Write/control routes fail
+closed on real hardware unless `CONTROL_TOKEN` is configured or
+`ALLOW_UNAUTHENTICATED_CONTROL=true` is set. The current Kubernetes deployment
+uses `ALLOW_UNAUTHENTICATED_CONTROL=true`, so the browser does not require
+projects.lan SSO, per-user accounts, or a hardware arm token; anyone who can
+reach the railroad web route can send DCC-EX commands directly.
 When the same UI is served through the launchpad at
 `http://projects.lan/railroad-automation/`, browser API, event-stream, and
 session-export requests keep that `/railroad-automation` prefix so control
